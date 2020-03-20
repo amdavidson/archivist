@@ -1,5 +1,6 @@
-
+import yaml
 import sys 
+from pathlib import Path
 
 class Log():
     LOGLEVEL = 3
@@ -18,4 +19,18 @@ class Log():
             else:
                 print(logstring)
 
+
+class Config():
+
+    CONFIGFILE = Path.home() / ".archivist.yml"
+
+    def init(self):
+        with open(self.CONFIGFILE) as stream:
+            try:
+                return yaml.full_load(stream)
+            except yaml.YAMLError as exc:
+                print(exc)
+
+    
+    
 

@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 pygit2 = "*"
 requests = "*"
+pyyaml = "*"
 
 [dev-packages]
 
