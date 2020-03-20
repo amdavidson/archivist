@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
-import requests, json, datetime, os, time
+import requests, json, datetime, os, time, glob
 from lib import Log, Config
 from pathlib import Path
+
 
 log = Log()
 log.LOGLEVEL=1
@@ -13,8 +14,14 @@ config = Config()
 c = config.init()
 
 def get_last_backup():
-    log("WARN: not checking age of last backup, backing up anyways.", loglevel="warn")
-    return datetime.datetime.fromtimestamp(0)
+    backups = backupdir.glob("*.json")
+    oldest = datetime.datetime.fromtimestamp(0)
+    for b in backups:
+        bdate = datetime.datetime.fromtimestamp(float(b.stem))
+        if bdate > oldest:
+            oldest = bdate
+    return oldest
+
 
 def backup_pinboard():
     response = requests.get("https://api.pinboard.in/v1/posts/update?format=json&auth_token="+c["pinboard_user"]+":"+c["pinboard_token"])
