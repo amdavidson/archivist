@@ -27,7 +27,7 @@ class Config():
     def init(self):
         with open(self.CONFIGFILE) as stream:
             try:
-                return yaml.load(stream)
+                return yaml.full_load(stream)
             except yaml.YAMLError as exc:
                 print(exc)
 
