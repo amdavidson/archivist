@@ -48,4 +48,5 @@ def backup_github():
     backup_gh_repos()
     backup_gh_gists()
 
-backup_github()
+if __name__ == '__main__':
+    backup_github()

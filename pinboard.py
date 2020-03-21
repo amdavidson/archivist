@@ -39,5 +39,6 @@ def backup_pinboard():
             f.write(response.text)
     else:
         log("No new bookmarks since last backup.")
-    
-backup_pinboard()
+
+if __name__ == '__main__':
+    backup_pinboard()
