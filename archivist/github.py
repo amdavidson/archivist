@@ -1,16 +1,10 @@
-#!/usr/bin/env python3
-
-import requests
-import json
-import os
+import requests, json, logging, os
 from pathlib import Path
 import pygit2
-from lib import Log
 
 user = "amdavidson"
 backupdir = Path.home() / "backups/github"
-log = Log()
-log.LOGLEVEL = 1
+log = logging.getLogger(__name__)
 
 def backup_gh_repos():
     response = requests.get("https://api.github.com/users/"+user+"/repos")
@@ -18,14 +12,14 @@ def backup_gh_repos():
     repos = json.loads(response.text)
 
     for repo in repos:
-        log("Backing up: " + repo["name"])
+        log.info("Backing up: " + repo["name"])
         dest = backupdir / "repo" / repo["full_name"]
         localrepopath = pygit2.discover_repository(str(dest))
         if localrepopath == None:
-            log("Cloning repo...")
+            log.info("Cloning repo...")
             pygit2.clone_repository(repo['clone_url'], str(dest), bare=True)
         else:
-            log("Fetching updates...")
+            log.info("Fetching updates...")
             localrepo = pygit2.Repository(localrepopath).remotes["origin"].fetch()
 
 def backup_gh_gists():
@@ -34,14 +28,14 @@ def backup_gh_gists():
     gists = json.loads(response.text)
 
     for gist in gists:
-        log("Backing up: " + gist["id"])
+        log.info("Backing up: " + gist["id"])
         dest = backupdir / "gist" / gist["owner"]["login"] / gist["id"]
         localgistpath = pygit2.discover_repository(str(dest))
         if localgistpath == None:
-            log("Cloning gist...")
+            log.info("Cloning gist...")
             pygit2.clone_repository(gist['git_pull_url'], str(dest), bare=True)
         else:
-            log("Fetching updates...")
+            log.info("Fetching updates...")
             pygit2.Repository(localgistpath).remotes["origin"].fetch()
 
 def backup_github(): 

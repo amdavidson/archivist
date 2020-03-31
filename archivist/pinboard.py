@@ -1,12 +1,8 @@
-#!/usr/bin/env python3
-
-import requests, json, datetime, os, time, glob
-from lib import Log, Config
+import requests, json, datetime, os, time, glob, logging
 from pathlib import Path
+from archivist.lib import Config
 
-
-log = Log()
-log.LOGLEVEL=1
+log = logging.getLogger(__name__)
 
 backupdir = Path.home() / "backups/pinboard"
 
@@ -29,7 +25,7 @@ def backup_pinboard():
     apiupdated = datetime.datetime.strptime(json.loads(response.text)["update_time"], "%Y-%m-%dT%H:%M:%SZ")
 
     if apiupdated > get_last_backup() :
-        log("New bookmarks added, pulling latest backup...")
+        log.info("New bookmarks added, pulling latest backup...")
         response = requests.get("https://api.pinboard.in/v1/posts/all?format=json&auth_token="+c["pinboard_user"]+":"+c["pinboard_token"])
         backupfile = str(time.time()) + ".json" 
         backuppath = backupdir / backupfile
@@ -38,7 +34,7 @@ def backup_pinboard():
         with open(backuppath, "w+") as f:
             f.write(response.text)
     else:
-        log("No new bookmarks since last backup.")
+        log.info("No new bookmarks since last backup.")
 
 if __name__ == '__main__':
     backup_pinboard()

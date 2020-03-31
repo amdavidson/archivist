@@ -1,10 +1,10 @@
 # Archivist 
 
-The archivist is run from a either a central `archivist.py` script or from one of the self contained individual source scripts.
+The archivist is run from a either a central `archivist.py` script
 
 ## Backing up all services
 
-Running `./archivist.yml` alone will backup all configured services.
+Running `./archivist.py` alone will backup all configured services.
 
 ## Backing up a single service
 
@@ -16,6 +16,3 @@ Add `github_user` to `$HOME/.archivist.yml`
 
 Run `./archivist.py backup github`
 
-### Individually
-
-Run `./github.py`
