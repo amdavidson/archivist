@@ -4,13 +4,6 @@ from archivist.lib import Config
 
 log = logging.getLogger(__name__)
 
-backupdir = Path.home() / "backups/fastmail"
-
-config = Config()
-c = config.init()
-
-
-
 def imap_connect(c):
     server = imaplib.IMAP4_SSL(c['imap_server'], c['imap_port'])
     server.login(c['imap_user'], c['imap_password'])

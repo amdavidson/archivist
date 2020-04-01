@@ -2,34 +2,22 @@ import yaml
 import sys 
 from pathlib import Path
 
-class Log():
-    LOGLEVEL = 3
-    DEST = "stdout"
-
-    def __call__(self, logstring, loglevel=None):
-        if loglevel == "error":
-            loglevel = 3
-        elif loglevel == "warning":
-            loglevel = 2
-        else:
-            loglevel = 1
-        if loglevel >= self.LOGLEVEL:
-            if self.DEST == "stderr":
-                print(logstring, file=sys.stderr)
-            else:
-                print(logstring)
-
-
 class Config():
 
     CONFIGFILE = Path.home() / ".archivist.yml"
+    c = {}
 
     def init(self):
         with open(self.CONFIGFILE) as stream:
             try:
-                return yaml.full_load(stream)
+                config_dict = yaml.full_load(stream)
+                for key, value in config_dict.items():
+                    self.c[key] = value
             except yaml.YAMLError as exc:
                 print(exc)
+
+    def backupdir(self): 
+        return Path(self.c["backup_folder"])
 
     
     
