@@ -2,11 +2,9 @@ import requests, json, logging, os
 from pathlib import Path
 import pygit2
 
-user = "amdavidson"
-backupdir = Path.home() / "backups/github"
 log = logging.getLogger(__name__)
 
-def backup_gh_repos():
+def backup_gh_repos(user, backupdir):
     response = requests.get("https://api.github.com/users/"+user+"/repos")
 
     repos = json.loads(response.text)
@@ -22,7 +20,7 @@ def backup_gh_repos():
             log.info("Fetching updates...")
             localrepo = pygit2.Repository(localrepopath).remotes["origin"].fetch()
 
-def backup_gh_gists():
+def backup_gh_gists(user, backupdir):
     response = requests.get("https://api.github.com/users/"+user+"/gists")
 
     gists = json.loads(response.text)
@@ -38,9 +36,11 @@ def backup_gh_gists():
             log.info("Fetching updates...")
             pygit2.Repository(localgistpath).remotes["origin"].fetch()
 
-def backup_github(): 
-    backup_gh_repos()
-    backup_gh_gists()
+def get_github_dir(backupdir):
+    github_dir = backupdir / "github"
+    return github_dir
 
-if __name__ == '__main__':
-    backup_github()
+def backup_github(user, backupdir): 
+    github_dir = get_github_dir(backupdir)
+    backup_gh_repos(user, github_dir)
+    backup_gh_gists(user, github_dir)
