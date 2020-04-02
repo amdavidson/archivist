@@ -1,9 +1,3 @@
-
-###
-# Heavily influenced by and borrowed from Rui Carmo's backup script
-# https://github.com/rcarmo/imapbackup/blob/master/imapbackup.py
-###
-
 import logging, email, os
 from pathlib import Path
 from imapclient import IMAPClient
