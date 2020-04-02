@@ -4,79 +4,21 @@
 # https://github.com/rcarmo/imapbackup/blob/master/imapbackup.py
 ###
 
-import imaplib, logging, re, hashlib, email
+import logging, email, os
 from pathlib import Path
+from imapclient import IMAPClient
 from archivist.lib import Config
+
 
 log = logging.getLogger(__name__)
 
-MSGID_RE = re.compile("^Message\-Id\: (.+)", re.IGNORECASE + re.MULTILINE)
-BLANKS_RE = re.compile(r'\s+', re.MULTILINE)
-
-def imap_connect(imap_server, imap_port, imap_user, imap_password):
-    log.info("Connecting to "+imap_server+" as "+imap_user)
-    server = imaplib.IMAP4_SSL(imap_server, imap_port)
-    server.login(imap_user, imap_password)
-    return server
-           
-def parse_paren_list(row):
-  """Parses the nested list of attributes at the start of a LIST response"""
-  # eat starting paren
-  assert(row[0] == '(')
-  row = row[1:]
- 
-  result = []
- 
-  # NOTE: RFC3501 doesn't fully define the format of name attributes 
-  name_attrib_re = re.compile("^\s*(\\\\[a-zA-Z0-9_]+)\s*")
- 
-  # eat name attributes until ending paren
-  while row[0] != ')':
-    # recurse
-    if row[0] == '(':
-      paren_list, row = parse_paren_list(row)
-      result.append(paren_list)
-    # consume name attribute
-    else:
-      match = name_attrib_re.search(row)
-      assert(match != None)
-      name_attrib = row[match.start():match.end()]
-      row = row[match.end():]
-      #print "MATCHED '%s' '%s'" % (name_attrib, row)
-      name_attrib = name_attrib.strip()
-      result.append(name_attrib)
- 
-  # eat ending paren
-  assert(')' == row[0])
-  row = row[1:]
- 
-  # done!
-  return result, row
- 
-def parse_string_list(row):
-  """Parses the quoted and unquoted strings at the end of a LIST response"""
-  slist = re.compile('\s*(?:"([^"]+)")\s*|\s*(\S+)\s*').split(row)
-  return [s for s in slist if s]
- 
-def parse_list(row):
-  """Prases response of LIST command into a list"""
-  row = row.strip()
-  paren_list, row = parse_paren_list(row)
-  string_list = parse_string_list(row)
-  assert(len(string_list) == 2)
-  return [paren_list] + string_list
-
-def get_remote_folders(server):
+def get_remote_folders(client):
     """ Gets and parses a list of folders from the server """
     log.info("Getting remote folders")
-    typ, data = server.list()
-
+    l = client.list_folders()
     folders = []
-    
-    for row in data:
-        l = parse_list(row.decode('UTF-8'))
-        folders.append(l[-1])
-    
+    for folder in l:
+        folders.append(str(folder[2]))
     return folders
 
 def create_folder_structure(localroot, folders):
@@ -86,7 +28,7 @@ def create_folder_structure(localroot, folders):
     else: 
         log.info("Updating local folder structure")
     for f in folders:
-        lf = localroot / f 
+        lf = localroot / f
         if not lf.exists():
             log.info("Creating "+str(lf))
             lf.mkdir(parents=True)
@@ -97,117 +39,98 @@ def create_folder_structure(localroot, folders):
             tmp = lf / "tmp"
             tmp.mkdir()
 
-
-
-def scan_remote_folder(server, folder):
+def scan_remote_folder(client, folder):
     """ Scans a remote folder for messages and retrieves message IDs in batches"""
-    ### ToDo: Cache this data and only pull new Messages from server.
-    folder = '"' + folder + '"'
     messages = {}
     log.info("Scanning "+folder)
-    typ, data = server.select(folder, readonly=True)
-    c = 0
-    if "OK" != typ:
-        log.error("Could not retrieve messages for the folder: "+folder)
-    num_messages = int(data[0])
-    if num_messages > 0:
-        log.info("Messages in folder "+folder+": "+str(num_messages))
-        jumpsize = 500 # how many messages to pull in one transaction
-        jumps = (num_messages // jumpsize) + 1 # adding one to make sure we get into the loop
-        mod_messages = num_messages % jumpsize
-        
-        for num in range(0, jumps):
-            """ Pull messages in batches to move faster than single transactions per message."""
-            log.info("Pulling batch#: "+str(num))
-            start = str(num*jumpsize)
-            if num == (jumps-1):
-                end = str(num*jumpsize + mod_messages)
-            else:
-                end = str(num*jumpsize + jumpsize - 1)
-            message_set = start + ":" + end
-            log.info("Messages in this batch: " + message_set)
-            typ, data = server.fetch(message_set, '(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])')
-            if 'OK' != typ:
-                log.error("Could not retrieve messages " + message_set + " from " + folder)
-            for i in range(0, len(data), 2):
-                msg = data[i][1]
-                msg_str = email.message_from_string(msg.decode('UTF-8'))
-                msg_id = msg_str.get('Message-ID')
-                if msg_id not in messages.keys():
-                    messages[msg_id] = num
-                    c += 1
-            #try: 
-            #    for d in data:
-            #        if isinstance(d, tuple):
-            #            header = d[1].strip()
-            #            header = header.decode('UTF-8')
-            #            header = BLANKS_RE.sub(' ', header)
-            #            msg_id = MSGID_RE.match(header).group(1)
-
-            #            if msg_id not in messages.keys():
-            #                messages[msg_id] = num
-            #                c += 1
-            #except (AttributeError):
-            #    """ If we break down in the batch processing, process one by one."""
-            #    log.warning("Bad message in batch "+str(num)+" of folder "+folder+". Running one by one...")
-            #    for n in range(int(start), int(end)):
-            #        typ, data = server.fetch(str(n), '(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])')
-            #        if 'OK' != typ:
-            #            log.error("Could not retrieve message " + str(n) + " from " + folder)
-            #        try:
-            #            header = data[0][1].strip()
-            #            header = header.decode('UTF-8')
-            #            header = BLANKS_RE.sub(' ', header)
-            #            msg_id = MSGID_RE.match(header).group(1)
-            #        except (AttributeError):
-            #            """ If the Message-ID cannot be processed normally, generate one. """
-            #            log.warning("Generating Message-ID for "+str(n)+" in folder "+folder)
-            #            typ, data = server.fetch(str(n), '(BODY.PEEK[HEADER.FIELDS (FROM TO CC DATE SUBJECT)])')
-            #            if "OK" != typ:
-            #                log.error("Could not retrieve message " + str(n) + " from " + folder)
-            #            header = data[0][1].strip()
-            #            header = str(header).replace('\r\n', '\t')
-            #            msg_id = '<' + hashlib.sha1(header.encode('UTF-8')).hexdigest() + '>'
-            #       if msg_id not in messages.keys():
-            #           messages[msg_id] = num
-            #           c += 1
-
-
-
-
-    else: 
-        log.info("No messages in folder "+folder+". Skipping ahead.")
-
-    log.info("Parsed " + str(c) + " of " + str(num_messages) + " in " + str(folder))
-    #return messages
+    client.select_folder(folder, readonly=True)
+    uids = client.search()
+    if len(uids) > 0:
+        UID_newest = max(uids)
+    else:
+        UID_newest = 0
+    UID_validity = client.folder_status(folder, what=u'UIDVALIDITY')[b'UIDVALIDITY']
+    return UID_validity, UID_newest
 
 def scan_local_folder(localroot, folder):
-    print("Not implemented")
+    """ Get the last UID stored in the folder """
+    UID_file = localroot / folder / '.uid'
+    if UID_file.exists():
+        with open(UID_file, 'r') as f:
+            fstr = f.read()
+            ftup = fstr.split()
+            return int(ftup[0]), int(ftup[1])
+    else: 
+        return -1, 0
 
-def download_messages(server, new_messages):
-    print("Not implemented")
+def get_messages(client, folder, uid_local, uid_newest):
+    """ Get all messages in a folder between two UIDs """
+    client.select_folder(folder, readonly=True)
+    searchstr = 'UID '+str(uid_local) + ":" + str(uid_newest)
+    messages = client.search(searchstr)
+    return messages
 
+def store_email(client, localroot, folder, uid_validity, uids):
+    """ Store an email in the correct folder"""
+    response = client.fetch(uids, 'RFC822')
+    
+    for uid, data in response.items():
+        filename = str(uid_validity) + '-' + str(uid).zfill(9)
+        emailfile = localroot / folder / "cur" / filename 
 
+        with open(emailfile, 'wb') as f:
+            f.write(data[b'RFC822'])
 
-def backup_imap(imap_server, imap_port, imap_user, imap_password, imap_localroot):
-    server = imap_connect(imap_server, imap_port, imap_user, imap_password)
+    return True
 
-    folders = get_remote_folders(server)
+def update_folder_uid(localroot, folder, uid_validity, uid):
+    """ Update the folder with the most recently stored UID """
+    UID_file = localroot / folder / '.uid'
+    
+    with open(UID_file, 'w') as f:
+        fstr = str(uid_validity) + " " + str(uid)
+        f.write(fstr)
+  
+    validity_check, check = scan_local_folder(localroot, folder)
 
-    create_folder_structure(imap_localroot, folders)
+    if validity_check == uid_validity and check == uid:
+        return True
+    else:
+        return False
+    
+    
+def backup_imap(imap_server, imap_user, imap_password, imap_localroot):
 
-    for folder in folders:
-        remote_messages = scan_remote_folder(server, folder)
-#        current_messages = scan_local_folder(imap_localroot, folder)
-#
-#        new_messages = {}
-#        
-#        for msg_id in remote_messages:
-#            if msg_id not in current_messages:
-#                new_messages[msg_id] = remote_messages[msg_id]
-#        
-#        download_messages(server, new_messages)
+    with IMAPClient(host=imap_server) as client:
+        client.login(imap_user, imap_password)
+        
+        folders = get_remote_folders(client)
+        create_folder_structure(imap_localroot, folders)
 
-    server.logout()
+        for folder in folders:
+            uid_local_validity, uid_local = scan_local_folder(imap_localroot, folder)
+            uid_remote_validity, uid_newest = scan_remote_folder(client, folder)
+
+            # if the folder does not have a recorded validity, accept the server's
+            if 0 > uid_local_validity: 
+                uid_local_validity = uid_remote_validity
+
+            # Check to make sure the server has not reset UIDs 
+            if uid_local_validity == uid_remote_validity:
+                messages = get_messages(client, folder, uid_local, uid_newest)
+                log.info("Downloading "+str(len(messages))+" to "+folder)
+
+                for uid in messages:
+                    if store_email(client, imap_localroot, folder, uid_remote_validity, uid):
+                        if not update_folder_uid(imap_localroot, folder, uid_remote_validity, uid):
+                            log.error("UID " + str(uid) + " failed to update in " + folder)
+                    else:
+                        log.error("Message " + str(uid) + " failed to save in " + folder)
+
+            else: 
+                log.error("The server has reset UID validity, for folder " + folder + ". Backup must be repaired manually")
+            
+
+                 
 
 

@@ -24,7 +24,7 @@ class Archivist():
             
             elif source == "imap":
                 log.info("Backing up IMAP")
-                imap.backup_imap(c.c["imap_server"], c.c["imap_port"], c.c["imap_user"], 
+                imap.backup_imap(c.c["imap_server"], c.c["imap_user"], 
                         c.c["imap_password"], c.imapdir())
             
             elif source == "all":
@@ -40,7 +40,7 @@ class Archivist():
                 
                 if c.c["imap_enabled"]:
                     log.info("Backing up IMAP")
-                    imap.backup_imap(c.c["imap_server"], c.c["imap_port"], c.c["imap_user"], 
+                    imap.backup_imap(c.c["imap_server"], c.c["imap_user"], 
                             c.c["imap_password"], c.imapdir())
             
             else:
