@@ -3,7 +3,6 @@ from pathlib import Path
 from imapclient import IMAPClient
 from archivist.lib import Config
 
-
 log = logging.getLogger(__name__)
 
 def get_remote_folders(client):
@@ -59,9 +58,12 @@ def scan_local_folder(localroot, folder):
 
 def get_messages(client, folder, uid_local, uid_newest):
     """ Get all messages in a folder between two UIDs """
-    client.select_folder(folder, readonly=True)
-    searchstr = 'UID '+str(uid_local) + ":" + str(uid_newest)
-    messages = client.search(searchstr)
+    if uid_newest > uid_local:
+        client.select_folder(folder, readonly=True)
+        searchstr = 'UID '+str(uid_local) + ":" + str(uid_newest)
+        messages = client.search(searchstr)
+    else: 
+        messages = []
     return messages
 
 def store_email(client, localroot, folder, uid_validity, uids):
@@ -113,6 +115,7 @@ def backup_imap(imap_server, imap_user, imap_password, imap_localroot):
             if uid_local_validity == uid_remote_validity:
                 messages = get_messages(client, folder, uid_local, uid_newest)
                 log.info("Downloading "+str(len(messages))+" to "+folder)
+                if len(messages) == 1: print(messages)
 
                 for uid in messages:
                     if store_email(client, imap_localroot, folder, uid_remote_validity, uid):
@@ -122,7 +125,8 @@ def backup_imap(imap_server, imap_user, imap_password, imap_localroot):
                         log.error("Message " + str(uid) + " failed to save in " + folder)
 
             else: 
-                log.error("The server has reset UID validity, for folder " + folder + ". Backup must be repaired manually")
+                log.error("The server has reset UID validity, for folder " + folder + "."+
+                        "Backup must be repaired manually")
             
 
                  
