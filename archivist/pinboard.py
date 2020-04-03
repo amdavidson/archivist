@@ -3,8 +3,8 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-def get_last_backup(backups_folder):
-    backups = backups_folder.glob("*.json")
+def get_last_backup(pinboard_dir):
+    backups = pinboard_dir.glob("*.json")
     oldest = datetime.datetime.fromtimestamp(0)
     for b in backups:
         bdate = datetime.datetime.fromtimestamp(float(b.stem))
@@ -12,18 +12,23 @@ def get_last_backup(backups_folder):
             oldest = bdate
     return oldest
 
+def get_pinboard_dir(backups_folder):
+    pinboard_dir = backups_folder / "pinboard"
+    return pinboard_dir
 
 def backup_pinboard(user, token, backups_folder):
     response = requests.get("https://api.pinboard.in/v1/posts/update?format=json&auth_token="+user+":"+token)
 
     apiupdated = datetime.datetime.strptime(json.loads(response.text)["update_time"], "%Y-%m-%dT%H:%M:%SZ")
 
-    if apiupdated > get_last_backup(backups_folder) :
+    pinboard_dir = get_pinboard_dir(backups_folder)
+
+    if apiupdated > get_last_backup(pinboard_dir) :
         log.info("New bookmarks added, pulling latest backup...")
         response = requests.get("https://api.pinboard.in/v1/posts/all?format=json&auth_token="+user+":"+token)
         backupfile = str(time.time()) + ".json" 
-        backuppath = backups_folder / backupfile
-        backups_folder.mkdir(parents=True, exist_ok=True)
+        pinboard_dir.mkdir(parents=True, exist_ok=True)
+        backuppath = pinboard_dir / backupfile
 
         with open(backuppath, "w+") as f:
             f.write(response.text)
