@@ -29,19 +29,23 @@ class Archivist():
             
             elif source == "all":
                 log.info("Backing up all sources")
+                log.info("---###---")
             
                 if c.c["github_enabled"]:
                     log.info("Backing up Github")
                     github.backup_github(c.c["github_user"], c.backupdir())
+                    log.info("---###---")
                 
                 if c.c["pinboard_enabled"]:
                     log.info("Backing up Pinboard")
                     pinboard.backup_pinboard(c.c["pinboard_user"], c.c["pinboard_token"], c.backupdir())
+                    log.info("---###---")
                 
                 if c.c["imap_enabled"]:
                     log.info("Backing up IMAP")
                     imap.backup_imap(c.c["imap_server"], c.c["imap_user"], 
                             c.c["imap_password"], c.imapdir(), c.c["imap_cleanup"])
+                    log.info("---###---")
             
             else:
                 log.error("Source %s not implemented" % source)
