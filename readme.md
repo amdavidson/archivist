@@ -39,7 +39,7 @@ imap_cleanup: True
 ### Service Notes
 
 #### Github
-The Archivist only supports backups of a users public repositories and gists at this time. See issue #2.
+The Archivist only supports backups of a users public repositories and gists at this time. See [#](https://github.com/amdavidson/archivist/issues/2).
 
 #### IMAP Servers
 The Archivist is currently tested against Fastmail, other IMAP servers may present issues. Report an issue with any problesm you see.
