@@ -31,11 +31,12 @@ def create_folder_structure(localroot, folders):
             new.mkdir()
             tmp = lf / "tmp"
             tmp.mkdir()
+    return True
 
 def scan_remote_folder(client, folder):
     """ Scans a remote folder for messages and retrieves message IDs in batches"""
     messages = {}
-    log.info("Scanning "+folder)
+    log.info("Scanning "+folder+" on server")
     client.select_folder(folder, readonly=True)
     uids = client.search()
     if len(uids) > 0:
@@ -43,7 +44,7 @@ def scan_remote_folder(client, folder):
     else:
         UID_newest = 0
     UID_validity = client.folder_status(folder, what=u'UIDVALIDITY')[b'UIDVALIDITY']
-    return UID_validity, UID_newest
+    return UID_validity, UID_newest, uids
 
 def scan_local_folder(localroot, folder):
     """ Get the last UID stored in the folder """
@@ -93,9 +94,41 @@ def update_folder_uid(localroot, folder, uid_validity, uid):
         return True
     else:
         return False
+
+def cleanup_folder(localroot, folder, remote_messages):
+    cull_list = []
+    local_list = []
+    path = localroot / folder / "cur"
     
+    log.info("Cleaning up old messages in "+folder)
+
+    for p in path.glob("*"):
+        uid = int(p.name.split("-")[1].lstrip("0"))
+        local_list.append(p)
+        if uid not in remote_messages:
+            cull_list.append(p)
+
+    if len(cull_list) > 0 :
+        log.info("Deleting "+str(len(cull_list)) + " of " + str(len(local_list)))
+        
+        for m in cull_list:
+            m.unlink()
+
+    remote_count = len(remote_messages)
+    final_count = 0
+    for p in path.glob("*"):
+        final_count += 1
+
+    if final_count == remote_count:
+        log.info(str(final_count) + " of " + str(remote_count) + 
+                " stored in " + folder)
+        return True
+    else:
+        log.error(str(final_count) + "!=" + str(remote_count) +
+                " | Message counts do not match in folder " + folder)
+        return False
     
-def backup_imap(imap_server, imap_user, imap_password, imap_localroot):
+def backup_imap(imap_server, imap_user, imap_password, imap_localroot, cleanup=True):
 
     with IMAPClient(host=imap_server) as client:
         client.login(imap_user, imap_password)
@@ -105,7 +138,7 @@ def backup_imap(imap_server, imap_user, imap_password, imap_localroot):
 
         for folder in folders:
             uid_local_validity, uid_local = scan_local_folder(imap_localroot, folder)
-            uid_remote_validity, uid_newest = scan_remote_folder(client, folder)
+            uid_remote_validity, uid_newest, remote_messages = scan_remote_folder(client, folder)
 
             # if the folder does not have a recorded validity, accept the server's
             if 0 > uid_local_validity: 
@@ -114,19 +147,23 @@ def backup_imap(imap_server, imap_user, imap_password, imap_localroot):
             # Check to make sure the server has not reset UIDs 
             if uid_local_validity == uid_remote_validity:
                 messages = get_messages(client, folder, uid_local, uid_newest)
-                log.info("Downloading "+str(len(messages))+" to "+folder)
-                if len(messages) == 1: print(messages)
+                if len(messages) > 0:
+                    log.info("Downloading "+str(len(messages))+" to "+folder)
 
-                for uid in messages:
-                    if store_email(client, imap_localroot, folder, uid_remote_validity, uid):
-                        if not update_folder_uid(imap_localroot, folder, uid_remote_validity, uid):
-                            log.error("UID " + str(uid) + " failed to update in " + folder)
-                    else:
-                        log.error("Message " + str(uid) + " failed to save in " + folder)
+                    for uid in messages:
+                        if store_email(client, imap_localroot, folder, uid_remote_validity, uid):
+                            if not update_folder_uid(imap_localroot, folder, uid_remote_validity, uid):
+                                log.error("UID " + str(uid) + " failed to update in " + folder)
+                        else:
+                            log.error("Message " + str(uid) + " failed to save in " + folder)
+
+                if cleanup:
+                    cleanup_folder(imap_localroot, folder, remote_messages)
 
             else: 
                 log.error("The server has reset UID validity, for folder " + folder + "."+
                         "Backup must be repaired manually")
+
             
 
                  

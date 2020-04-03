@@ -25,7 +25,7 @@ class Archivist():
             elif source == "imap":
                 log.info("Backing up IMAP")
                 imap.backup_imap(c.c["imap_server"], c.c["imap_user"], 
-                        c.c["imap_password"], c.imapdir())
+                        c.c["imap_password"], c.imapdir(), c.c["imap_cleanup"])
             
             elif source == "all":
                 log.info("Backing up all sources")
@@ -41,7 +41,7 @@ class Archivist():
                 if c.c["imap_enabled"]:
                     log.info("Backing up IMAP")
                     imap.backup_imap(c.c["imap_server"], c.c["imap_user"], 
-                            c.c["imap_password"], c.imapdir())
+                            c.c["imap_password"], c.imapdir(), c.c["imap_cleanup"])
             
             else:
                 log.error("Source %s not implemented" % source)
