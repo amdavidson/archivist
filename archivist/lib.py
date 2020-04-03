@@ -19,6 +19,8 @@ class Config():
     def backupdir(self): 
         return Path(self.c["backup_folder"])
 
-    
+
+    def imapdir(self):
+        return self.backupdir() / self.c["imap_localroot"]
     
 
