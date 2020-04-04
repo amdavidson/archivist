@@ -1,4 +1,4 @@
-import logging, email, os
+import logging, email, os, gzip
 from pathlib import Path
 from imapclient import IMAPClient
 from archivist.lib import Config
@@ -67,13 +67,19 @@ def get_messages(client, folder, uid_local, uid_newest):
         messages = []
     return messages
 
-def store_email(client, localroot, folder, uid_validity, uids):
+def store_email(client, localroot, folder, uid_validity, uids, compress):
     """ Store an email in the correct folder"""
     response = client.fetch(uids, 'RFC822')
     
     for uid, data in response.items():
         filename = str(uid_validity) + '-' + str(uid).zfill(9)
         emailfile = localroot / folder / "cur" / filename 
+
+        rfcdata = data[b'RFC822']
+        
+        if compress:
+            rfcdata = gzip.compress(rfcdata, compresslevel=3)
+            emailfile = emailfile.with_suffix(".gz")
 
         with open(emailfile, 'wb') as f:
             f.write(data[b'RFC822'])
@@ -103,7 +109,7 @@ def cleanup_folder(localroot, folder, remote_messages):
     log.info("Cleaning up old messages in "+folder)
 
     for p in path.glob("*"):
-        uid = int(p.name.split("-")[1].lstrip("0"))
+        uid = int(p.stem.split("-")[1].lstrip("0"))
         local_list.append(p)
         if uid not in remote_messages:
             cull_list.append(p)
@@ -128,7 +134,7 @@ def cleanup_folder(localroot, folder, remote_messages):
                 " | Message counts do not match in folder " + folder)
         return False
     
-def backup_imap(imap_server, imap_user, imap_password, imap_localroot, cleanup=True):
+def backup_imap(imap_server, imap_user, imap_password, imap_localroot, cleanup=True, compress=False):
 
     with IMAPClient(host=imap_server) as client:
         client.login(imap_user, imap_password)
@@ -151,7 +157,7 @@ def backup_imap(imap_server, imap_user, imap_password, imap_localroot, cleanup=T
                     log.info("Downloading "+str(len(messages))+" to "+folder)
 
                     for uid in messages:
-                        if store_email(client, imap_localroot, folder, uid_remote_validity, uid):
+                        if store_email(client, imap_localroot, folder, uid_remote_validity, uid, compress):
                             if not update_folder_uid(imap_localroot, folder, uid_remote_validity, uid):
                                 log.error("UID " + str(uid) + " failed to update in " + folder)
                         else:
