@@ -49,14 +49,14 @@ class Archivist():
 
     def run(self, command, service):
         if command == "backup":
-            if service == "all":
+            if service == None: 
                 log.info("Backing up all services")
                 log.info("---###---")
                 
                 for b in config["services"]:
-                    self.run_backup(b)
+                    self.run_backup(config["services"][b])
 
-            elif service in config["services"]:
+            elif service != None and service in config["services"]:
                 self.run_backup(config["services"][service])
 
             else:
