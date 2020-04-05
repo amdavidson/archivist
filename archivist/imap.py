@@ -1,7 +1,6 @@
 import logging, email, os, gzip
 from pathlib import Path
 from imapclient import IMAPClient
-from archivist.lib import Config
 
 log = logging.getLogger(__name__)
 
@@ -134,16 +133,20 @@ def cleanup_folder(localroot, folder, remote_messages):
                 " | Message counts do not match in folder " + folder)
         return False
     
-def backup_imap(imap_server, imap_user, imap_password, imap_localroot, cleanup=True, compress=False):
+def backup_imap(config):
+   
+    compress = config.get("compress", True)
+    cleanup = config.get("cleanup", False)
+    backup_folder = Path(config["backup_folder"])
 
-    with IMAPClient(host=imap_server) as client:
-        client.login(imap_user, imap_password)
+    with IMAPClient(host=config["server"]) as client:
+        client.login(config["user"], config["password"])
         
         folders = get_remote_folders(client)
-        create_folder_structure(imap_localroot, folders)
+        create_folder_structure(backup_folder, folders)
 
         for folder in folders:
-            uid_local_validity, uid_local = scan_local_folder(imap_localroot, folder)
+            uid_local_validity, uid_local = scan_local_folder(backup_folder, folder)
             uid_remote_validity, uid_newest, remote_messages = scan_remote_folder(client, folder)
 
             # if the folder does not have a recorded validity, accept the server's
@@ -157,14 +160,14 @@ def backup_imap(imap_server, imap_user, imap_password, imap_localroot, cleanup=T
                     log.info("Downloading "+str(len(messages))+" to "+folder)
 
                     for uid in messages:
-                        if store_email(client, imap_localroot, folder, uid_remote_validity, uid, compress):
-                            if not update_folder_uid(imap_localroot, folder, uid_remote_validity, uid):
+                        if store_email(client, backup_folder, folder, uid_remote_validity, uid, compress):
+                            if not update_folder_uid(backup_folder, folder, uid_remote_validity, uid):
                                 log.error("UID " + str(uid) + " failed to update in " + folder)
                         else:
                             log.error("Message " + str(uid) + " failed to save in " + folder)
 
                 if cleanup:
-                    cleanup_folder(imap_localroot, folder, remote_messages)
+                    cleanup_folder(backup_folder, folder, remote_messages)
 
             else: 
                 log.error("The server has reset UID validity, for folder " + folder + "."+
