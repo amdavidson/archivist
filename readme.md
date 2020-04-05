@@ -13,21 +13,27 @@ The Archivist is configured with a `yaml` file at `~/.archivist.yml`
 
 Example:
 ```yaml
-backup_folder: /home/amd/backups
-
-github_enabled: True
-github_user: defunkt
-
-pinboard_enabled: True
-pinboard_user: idlewords
-pinboard_token: 46a9d5bde718bf366178313019f04a753bad00685d38e3ec81c8628f35dfcb1b
-
-imap_enabled: True
-imap_localroot: maildir
-imap_server: imap.email-host.com 
-imap_user: me@email-host.com 
-imap_password: hunter2 
-imap_cleanup: True
+services:
+    github:
+        name: "Github"
+        service_type: github
+        backup_folder: /home/user/backups/github
+        user: gh-user 
+    pinboard:
+        name: "Pinboard"
+        service_type: pinboard
+        backup_folder: /home/user/backups/pinboard
+        user: pbuser
+        token: 0xDEADBEEF
+    fastmail:
+        name: "Email Host"
+        service_type: imap
+        backup_folder: /home/user/backups/fastmail
+        server: imap.email.host.name
+        user: user@email.host.name 
+        password: Hunter2 
+        cleanup: False
+        compress: True
 ```
 
 ## Supported Services
