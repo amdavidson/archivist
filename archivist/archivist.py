@@ -1,56 +1,66 @@
-import logging, sys
+import logging, sys, yaml, os
 
-from archivist.lib import Config
+from pathlib import Path
+
 import archivist.pinboard as pinboard
 import archivist.github as github
 import archivist.imap as imap
 
 log = logging.getLogger(__name__)
 
-c = Config()
-c.init()
+config_locations = []
+config_locations.append(Path("./archivist.yml"))
+if None != os.environ.get("XDG_CONFIG_HOME"):
+    config_locations.append(Path(os.environ.get("XDG_CONFIG_HOME")) / "archivist/archivist.yml")
+config_locations.append(Path.home() / ".config/archivist/archivist.yml")
+config_locations.append(Path.home() / ".archivist.yml")
+config_locations.append(Path("/etc/archivist.yml"))
+
+got_config = False
+i = 0
+while not got_config: 
+    if config_locations[i].exists():
+        with open(config_locations[i]) as f:
+            config = yaml.full_load(f)
+            got_config = True
+            log.info("Loading configuration from: "+str(config_locations[i]))
+    
+    i += 1
+    if i == len(config_locations):
+        string = "Could not load a config file.\n\nCreate one at one of these locations:\n"
+        for loc in config_locations:
+            string = string + "\t- " + str(loc) + "\n"
+        log.fatal(string)
+        sys.exit(1)
 
 class Archivist():
-    def run(self, command, source):
+    def run_backup(self, config):
+        if config["service_type"] == "github":
+            log.info("Backing up "+config["name"])
+            github.backup_github(config)
+
+        elif config["service_type"] == "pinboard":
+            log.info("Backing up "+config["name"])
+            pinboard.backup_pinboard(config)
+        
+        elif config["service_type"] == "imap":
+            log.info("Backing up "+config["name"])
+            imap.backup_imap(config)
+
+    def run(self, command, service):
         if command == "backup":
-
-            if source == "github":
-                log.info("Backing up Github")
-                github.backup_github(c.c["github_user"], c.backupdir())
-
-            elif source == "pinboard":
-                log.info("Backing up Pinboard")
-                pinboard.backup_pinboard(c.c["pinboard_user"], c.c["pinboard_token"], c.backupdir())
-            
-            elif source == "imap":
-                log.info("Backing up IMAP")
-                imap.backup_imap(c.c["imap_server"], c.c["imap_user"], 
-                        c.c["imap_password"], c.imapdir(), cleanup=c.c["imap_cleanup"], 
-                        compress=c.c["imap_compress"])
-            
-            elif source == "all":
-                log.info("Backing up all sources")
+            if service == "all":
+                log.info("Backing up all services")
                 log.info("---###---")
-            
-                if c.c["github_enabled"]:
-                    log.info("Backing up Github")
-                    github.backup_github(c.c["github_user"], c.backupdir())
-                    log.info("---###---")
                 
-                if c.c["pinboard_enabled"]:
-                    log.info("Backing up Pinboard")
-                    pinboard.backup_pinboard(c.c["pinboard_user"], c.c["pinboard_token"], c.backupdir())
-                    log.info("---###---")
-                
-                if c.c["imap_enabled"]:
-                    log.info("Backing up IMAP")
-                    imap.backup_imap(c.c["imap_server"], c.c["imap_user"], 
-                            c.c["imap_password"], c.imapdir(), cleanup=c.c["imap_cleanup"], 
-                            compress=c.c["imap_compress"])
-                    log.info("---###---")
-            
+                for b in config["services"]:
+                    self.run_backup(b)
+
+            elif service in config["services"]:
+                self.run_backup(config["services"][service])
+
             else:
-                log.error("Source %s not implemented" % source)
+                log.error("Service %s not implemented" % service)
 
         else:
             log.error("Command %s not implemented" % command)
