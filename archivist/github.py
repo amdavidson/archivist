@@ -36,11 +36,7 @@ def backup_gh_gists(user, backupdir):
             log.info("Fetching updates...")
             pygit2.Repository(localgistpath).remotes["origin"].fetch()
 
-def get_github_dir(backupdir):
-    github_dir = backupdir / "github"
-    return github_dir
-
-def backup_github(user, backupdir): 
-    github_dir = get_github_dir(backupdir)
-    backup_gh_repos(user, github_dir)
-    backup_gh_gists(user, github_dir)
+def backup_github(config): 
+    github_dir = Path(config["backup_folder"])
+    backup_gh_repos(config["user"], github_dir)
+    backup_gh_gists(config["user"], github_dir)
