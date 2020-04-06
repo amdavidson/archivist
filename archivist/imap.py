@@ -129,7 +129,7 @@ def cleanup_folder(localroot, folder, remote_messages):
                 " stored in " + folder)
         return True
     else:
-        log.error(str(final_count) + "!=" + str(remote_count) +
+        log.error("L" + str(final_count) + "!=R" + str(remote_count) +
                 " | Message counts do not match in folder " + folder)
         return False
     
