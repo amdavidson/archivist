@@ -37,6 +37,8 @@ def backup_gh_gists(user, backupdir):
             pygit2.Repository(localgistpath).remotes["origin"].fetch()
 
 def backup_github(config): 
+    disable_gists = config.get("disable_gists", False)
+    disable_repos = config.get("disable_repos", False)
     github_dir = Path(config["backup_folder"])
-    backup_gh_repos(config["user"], github_dir)
-    backup_gh_gists(config["user"], github_dir)
+    if not disable_repos: backup_gh_repos(config["user"], github_dir)
+    if not disable_gists: backup_gh_gists(config["user"], github_dir)
