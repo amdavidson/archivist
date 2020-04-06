@@ -142,7 +142,7 @@ def backup_imap(config):
     with IMAPClient(host=config["server"]) as client:
         client.login(config["user"], config["password"])
         
-        folders = get_remote_folders(client)
+        folders =  config.get("folders", get_remote_folders(client)) 
         create_folder_structure(backup_folder, folders)
 
         for folder in folders:
