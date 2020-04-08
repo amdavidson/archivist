@@ -12,7 +12,7 @@ if None != os.environ.get("XDG_CONFIG_HOME"):
     config_locations.append(Path(os.environ.get("XDG_CONFIG_HOME")) / "archivist/archivist.yml")
 config_locations.append(Path.home() / ".config/archivist/archivist.yml")
 config_locations.append(Path.home() / ".archivist.yml")
-config_locations.append(Path("/etc/archivist.yml"))
+config_locations.append(Path("/etc/archivist/archivist.yml"))
 
 got_config = False
 i = 0

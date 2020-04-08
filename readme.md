@@ -1,10 +1,24 @@
 # Archivist 
 
-The archivist is run from a either a central `archivist.py` script
+The archivist is run from a either a `archivist.py` script or a Docker container.
 
-Running `./archivist.py` alone will back up all configured services.
+## Script Use
+Running `bin/archivist.sh` alone will back up all configured services.
 
-You can also back up a single service by running `./archivist.py backup service`
+You can also back up a single service by running `bin/archivist.sh backup service`
+
+## Docker Use
+
+The docker container needs two volumes, one mounted wherever you store the backups and 
+the other at `/archivist/archivist.yml` for the config file.
+
+Example:
+```bash
+docker run --rm \
+-v /home/host-user/host_backup_dir:/backups \
+-v /home/host-user/archivist_config.yml:/archivist/archivist.yml \
+amdavidson/archivist
+```
 
 
 ## Configuring the Archivist
@@ -19,6 +33,13 @@ services:
         service_type: github
         backup_folder: /home/user/backups/github
         user: gh-user 
+        token: 0xDEADBEEF
+        disable_repos: False
+        disable_gists: False
+        repo_backup_list:
+            - important-repository
+        gist_backup_list
+            - 1337
     pinboard:
         name: "Pinboard"
         service_type: pinboard
@@ -43,9 +64,6 @@ services:
 - IMAP servers
 
 ### Service Notes
-
-#### Github
-The Archivist only supports backups of a users public repositories and gists at this time. See [#2](https://github.com/amdavidson/archivist/issues/2).
 
 #### IMAP Servers
 The Archivist is currently tested against Fastmail, other IMAP servers may present issues. Report an issue with any problesm you see.
