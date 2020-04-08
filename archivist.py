@@ -20,8 +20,9 @@ while not got_config:
     if config_locations[i].exists():
         with open(config_locations[i]) as f:
             config = yaml.full_load(f)
-            got_config = True
-            log.info("Loading configuration from: "+str(config_locations[i]))
+            if config != None:
+                got_config = True
+                log.info("Loading configuration from: "+str(config_locations[i]))
     
     i += 1
     if i == len(config_locations):
@@ -30,6 +31,7 @@ while not got_config:
             string = string + "\t- " + str(loc) + "\n"
         log.fatal(string)
         sys.exit(1)
+
 
 setup_logging(config)
 

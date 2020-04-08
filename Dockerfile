@@ -6,6 +6,8 @@ VOLUME /backups
 
 COPY . /archivist
 
+RUN touch /archivist/archivist.yml
+
 WORKDIR /archivist
 
 RUN pipenv install 
