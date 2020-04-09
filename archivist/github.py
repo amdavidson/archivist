@@ -49,18 +49,18 @@ def backup_gh_gists(user, backupdir, token=None, backup_list=None):
     to_backup = []
     if backup_list != None:
         for gist in gists:
-            if gist["id"] in backup_list:
+            if str(gist["id"]) in backup_list:
                 to_backup.append(gist)
     else:
         to_backup = gists
 
     for gist in to_backup:
-        log.info("Backing up: " + gist["id"])
-        dest = backupdir / "gist" / gist["owner"]["login"] / gist["id"]
+        log.info("Backing up: " + str(gist["id"]))
+        dest = backupdir / "gist" / str(gist["owner"]["login"]) / str(gist["id"])
         localgistpath = pygit2.discover_repository(str(dest))
         if localgistpath == None:
             log.info("Cloning gist...")
-            pygit2.clone_repository(gist['git_pull_url'], str(dest), bare=True)
+            pygit2.clone_repository(gist['clone_url'], str(dest), bare=True)
         else:
             log.info("Fetching updates...")
             pygit2.Repository(localgistpath).remotes["origin"].fetch()
