@@ -23,7 +23,12 @@ amdavidson/archivist
 
 ## Configuring the Archivist
 
-The Archivist is configured with a `yaml` file at `~/.archivist.yml`
+The Archivist is configured with a `yaml` file stored at one of these locations:
+- `./archivist.yml`
+- `$XDG_CONFIG_HOME/archivist/archivist.yml`
+- `~/.config/archivist/archivist.yml`
+- `~/.archivist.yml`
+- `/etc/archivist/archivist.yml`
 
 Example:
 ```yaml
