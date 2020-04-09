@@ -1,6 +1,6 @@
 # Archivist 
 
-The archivist is run from a either a `archivist.py` script or a Docker container.
+The archivist is run from a either a script or a Docker container.
 
 ## Script Use
 Running `bin/archivist.sh` alone will back up all configured services.
