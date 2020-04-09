@@ -48,6 +48,9 @@ def run_backup(config):
     elif config["service_type"] == "imap":
         log.info("Backing up "+config["name"])
         imap.backup_imap(config)
+    
+    else:
+        log.warning("Service type \"" + config["service_type"] + "\" is not enabled.")
 
 def run_archivist(command, service):
     if command == "backup":
