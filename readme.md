@@ -71,4 +71,4 @@ services:
 ### Service Notes
 
 #### IMAP Servers
-The Archivist is currently tested against Fastmail, other IMAP servers may present issues. Report an issue with any problesm you see.
+The Archivist is currently tested against Fastmail, other IMAP servers may present issues. Report an issue with any problems you see.
