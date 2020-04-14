@@ -4,7 +4,7 @@ import pygit2
 
 log = logging.getLogger(__name__)
 
-def backup_gh_repos(user, backupdir, token=None, backup_list=None):
+def backup_gh_repos(user, backupdir, token=None, backup_list=None, exclude_list=None):
 
     callbacks = None
 
@@ -25,7 +25,12 @@ def backup_gh_repos(user, backupdir, token=None, backup_list=None):
             if repo["name"] in backup_list:
                 to_backup.append(repo)
     else:
-        to_backup = repos
+        if exclude_list != None:
+            for repo in repos:
+                if repo["name"] not in exclude_list:
+                    to_backup.append(repo)
+        else:
+            to_backup = repos
 
 
     for repo in to_backup:
@@ -49,18 +54,18 @@ def backup_gh_gists(user, backupdir, token=None, backup_list=None):
     to_backup = []
     if backup_list != None:
         for gist in gists:
-            if gist["id"] in backup_list:
+            if str(gist["id"]) in backup_list:
                 to_backup.append(gist)
     else:
         to_backup = gists
 
     for gist in to_backup:
-        log.info("Backing up: " + gist["id"])
-        dest = backupdir / "gist" / gist["owner"]["login"] / gist["id"]
+        log.info("Backing up: " + str(gist["id"]))
+        dest = backupdir / "gist" / str(gist["owner"]["login"]) / str(gist["id"])
         localgistpath = pygit2.discover_repository(str(dest))
         if localgistpath == None:
             log.info("Cloning gist...")
-            pygit2.clone_repository(gist['git_pull_url'], str(dest), bare=True)
+            pygit2.clone_repository(gist['clone_url'], str(dest), bare=True)
         else:
             log.info("Fetching updates...")
             pygit2.Repository(localgistpath).remotes["origin"].fetch()
@@ -71,7 +76,8 @@ def backup_github(config):
     github_dir = Path(config["backup_folder"])
     if not disable_repos: backup_gh_repos(config["user"], github_dir, 
             config.get("token", None),
-            config.get("repo_backup_list", None))
+            config.get("repo_backup_list", None),
+            config.get("repo_exclude_list", None))
     if not disable_gists: backup_gh_gists(config["user"], github_dir, 
             config.get("token", None),
             config.get("gist_backup_list", None))
