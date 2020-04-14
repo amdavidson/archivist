@@ -44,7 +44,7 @@ def backup_gh_repos(user, backupdir, token=None, backup_list=None, exclude_list=
             log.info("Fetching updates...")
             localrepo = pygit2.Repository(localrepopath).remotes["origin"].fetch(callbacks=callbacks)
 
-def backup_gh_gists(user, backupdir, token=None, backup_list=None):
+def backup_gh_gists(user, backupdir, token=None, backup_list=None, exclude_list=None):
     if token != None:
         response = requests.get("https://api.github.com/users/"+user+"/repos", auth=(user, token))
     else:
@@ -57,7 +57,13 @@ def backup_gh_gists(user, backupdir, token=None, backup_list=None):
             if str(gist["id"]) in backup_list:
                 to_backup.append(gist)
     else:
-        to_backup = gists
+        if exclude_list != None:
+            for gist in gists:
+                if str(gist["id"]) not in exclude_list:
+                    to_backup.append(gist)
+        else:
+            to_backup = gists
+
 
     for gist in to_backup:
         log.info("Backing up: " + str(gist["id"]))
@@ -80,4 +86,5 @@ def backup_github(config):
             config.get("repo_exclude_list", None))
     if not disable_gists: backup_gh_gists(config["user"], github_dir, 
             config.get("token", None),
-            config.get("gist_backup_list", None))
+            config.get("gist_backup_list", None),
+            config.get("gist_exclude_list", None))
