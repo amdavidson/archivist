@@ -12,5 +12,5 @@ WORKDIR /archivist
 
 RUN pipenv install 
 
-CMD /archivist/bin/archivist.sh backup 
+ENTRYPOINT ["/archivist/bin/archivist.sh"]
 
