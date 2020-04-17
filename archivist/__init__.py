@@ -6,7 +6,7 @@ def setup_logging(config):
     loglevel = config.get("loglevel", "info")
     if loglevel == "info":
         log.setLevel(logging.INFO)
-    elif loglevel == "warn":
+    elif loglevel == "warn" or loglevel == "warning":
         log.setLevel(logging.WARNING)
     elif loglevel == "error":
         log.setLevel(logging.ERROR)
