@@ -5,54 +5,46 @@ from xml.etree import ElementTree
 
 log = logging.getLogger(__name__)
 
-def auto_discover(url):
-   
+def autodiscover(url):
+    log.info("Autodiscovering url...")
+    url = url.strip("/")
+    if url.endswith('/.well-known/carddav'):
+        discovery_url = url 
+    else:
+        discovery_url = urllib.parse.urljoin(url, '/.well-known/carddav')
+
+    response = requests.get(discovery_url)
     return response.url
 
-def backup_carddav(config):
+def check_books(root_url, username, s):
+    log.info("Checking for out of date address books...")
 
-    with requests.Session() as s:
-        s.auth = (config['user'], config['password'])
-        
-        url = config['url'].strip("/")
-        if url.endswith('/.well-known/carddav'):
-            discovery_url = url 
-        else:
-            discovery_url = urllib.parse.urljoin(url, '/.well-known/carddav')
+    addr_url = root_url + '/user/' + username
 
-        response = s.request("PROPFIND", discovery_url, headers={"Depth": "0"})
+    response = s.request("PROPFIND", addr_url, headers={"Depth": "1"})
 
-        tree = ElementTree.fromstring(response.content)
+    tree = ElementTree.fromstring(response.content)
 
-        for e in tree[0]: 
-            if e.tag == "{DAV:}href":
-                suff = e.text
+    ns = { "D": "DAV:", "C": "urn:ietf:params:xml:ns:carddav" }
 
-        suff = urllib.parse.urljoin(suff + '/user/', config['user'] + '/')
+    books = []
 
-        addr_url = urllib.parse.urljoin(config['url'], suff)
+    for i in tree.findall("././"):
+        if i.findall(".//C:addressbook", ns):
+            name = i.find("./D:propstat/D:prop/D:displayname", ns).text
+            date = i.find("./D:propstat/D:prop/D:getlastmodified", ns).text
+            url = i.find("./D:href", ns).text
 
-        response = s.request("PROPFIND", addr_url, headers={"Depth": "1"})
+            ### TODO: check dates
 
-        tree = ElementTree.fromstring(response.content)
+            books.append({"name": name, "url": url, "date": date})
+    
+    return books
 
-        print(response.text)
-
-        ns = { "D": "DAV:", "C": "urn:ietf:params:xml:ns:carddav" }
-
-        books = []
-
-        for i in tree.findall("././"):
-            if i.findall(".//C:addressbook", ns):
-                name = i.find("./D:propstat/D:prop/D:displayname", ns).text
-                url = i.find("./D:href", ns).text
-                
-                books.append({"name": name, "url": url})
-
-        #### get last modified date from here and compare to local date
-
+def save_books(s, backup_path, root_url, books):
         for book in books:
-            print(book["name"])
+            log.info("Downloading " + book["name"])
+        #### TODO: Save books
         #    response = s.get(book_url, headers={"Depth": "1"})
         #    
         #    backupfile = str(time.time()) + ".json" 
@@ -61,4 +53,17 @@ def backup_carddav(config):
 
         #    with open(backuppath, "w+") as f:
         #        f.write(response.text)
+
+
+
+def backup_carddav(config):
+
+    root_url = autodiscover(config["url"])
+
+    with requests.Session() as s:
+        s.auth = (config['user'], config['password'])
+        
+        books = check_books(root_url, config["user"], s)
+        
+        save_books(s, config['backup_folder'], root_url, books)
 
