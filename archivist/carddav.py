@@ -1,4 +1,4 @@
-import requests, json, logging
+import requests, json, logging, datetime
 import urllib.parse
 from pathlib import Path
 from xml.etree import ElementTree
@@ -16,7 +16,32 @@ def autodiscover(url):
     response = requests.get(discovery_url)
     return response.url
 
-def check_books(root_url, username, s):
+def get_old_backups(backup_dir):
+    old_backups = {}
+    for b in backup_dir.glob("*.vcf"):
+        bname, b2 = b.stem.split("##")
+        bdate = datetime.datetime.fromtimestamp(float(b2))
+
+        if bname not in old_backups:
+            old_backups[bname] = {}
+            old_backups[bname]["backups"] = [b]
+            old_backups[bname]["latest"] = datetime.datetime.fromtimestamp(0)
+        else:
+            old_backups[bname]["backups"].append(b)
+
+        if old_backups[bname]["latest"] < bdate:
+            log.info("Found " + bname + " last updated on " + str(bdate))
+            old_backups[bname]["latest"] = bdate
+
+
+    return old_backups
+
+def get_safe_name(name):
+    safe_chars = ("_", ".", "-")
+    safe_name = "".join(c for c in name if c.isalnum() or c in safe_chars).rstrip()
+    return safe_name
+
+def check_books(root_url, username, s, old_backups=None):
     log.info("Checking for out of date address books...")
 
     addr_url = root_url + '/user/' + username
@@ -29,32 +54,37 @@ def check_books(root_url, username, s):
 
     books = []
 
-    for i in tree.findall("././"):
+    for i in tree.findall("././D:response", ns):
         if i.findall(".//C:addressbook", ns):
             name = i.find("./D:propstat/D:prop/D:displayname", ns).text
-            date = i.find("./D:propstat/D:prop/D:getlastmodified", ns).text
+            date = datetime.datetime.strptime(i.find("./D:propstat/D:prop/D:getlastmodified", ns).text,
+                    "%a, %d %b %Y %H:%M:%S %Z")
             url = i.find("./D:href", ns).text
 
-            ### TODO: check dates
+            safename = get_safe_name(name)
 
-            books.append({"name": name, "url": url, "date": date})
-    
+            if safename not in old_backups or date > old_backups[safename]["latest"]:
+                log.info(safename + " is out of date")
+                books.append({"name": name, "url": url, "date": date})
+
+    if len(books) == 0:
+        log.info("No out of date addressbooks found.")
+
     return books
 
-def save_books(s, backup_path, root_url, books):
+def save_books(s, backup_folder, root_url, books):
         for book in books:
-            log.info("Downloading " + book["name"])
-        #### TODO: Save books
-        #    response = s.get(book_url, headers={"Depth": "1"})
-        #    
-        #    backupfile = str(time.time()) + ".json" 
-        #    pinboard_dir.mkdir(parents=True, exist_ok=True)
-        #    backuppath = pinboard_dir / backupfile
+            log.info("Downloading " + get_safe_name(book["name"]))
+            full_url = urllib.parse.urljoin(root_url, book['url'])
+            response = s.get(full_url, headers={"Depth": "1"})
+             
+            backup_file = (get_safe_name(book["name"]) + "##" + 
+                    str(book["date"].timestamp()) + ".vcf")
+            backup_folder.mkdir(parents=True, exist_ok=True)
+            backup_path = backup_folder / backup_file
 
-        #    with open(backuppath, "w+") as f:
-        #        f.write(response.text)
-
-
+            with open(backup_path, "w+") as f:
+                f.write(response.text)
 
 def backup_carddav(config):
 
@@ -62,8 +92,17 @@ def backup_carddav(config):
 
     with requests.Session() as s:
         s.auth = (config['user'], config['password'])
+
+        old_backups = get_old_backups(Path(config['backup_folder']))
         
-        books = check_books(root_url, config["user"], s)
+        books = check_books(root_url, config["user"], s, old_backups)
         
-        save_books(s, config['backup_folder'], root_url, books)
+        save_books(s, Path(config['backup_folder']), root_url, books)
+      
+        if config.get("keep_old", False) and len(books) > 0:
+            log.info("Cleaning up old backups")
+            for book in books:
+                for b in old_backups[book["name"]]["backups"]:
+                    log.info("Deleting " + str(b))
+                    b.unlink()
 
