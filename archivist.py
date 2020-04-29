@@ -5,6 +5,7 @@ import archivist.pinboard as pinboard
 import archivist.github as github
 import archivist.imap as imap
 import archivist.carddav as carddav
+import archivist.caldav as caldav
 from archivist import log, setup_logging
 
 config_locations = []
@@ -54,6 +55,10 @@ def run_backup(config):
         log.info("Backing up "+config["name"])
         carddav.backup_carddav(config)
 
+    elif config["service_type"] == "caldav":
+        log.info("Backing up "+config["name"])
+        caldav.backup_caldav(config)
+    
     else:
         log.warning("Service type \"" + config["service_type"] + "\" is not enabled.")
 
@@ -65,8 +70,7 @@ def run_archivist(command, service):
             
             for b in config["services"]:
                 run_backup(config["services"][b])
-
-            log.info("---###---")
+                log.info("---###---")
 
         elif service != None and service in config["services"]:
             run_backup(config["services"][service])
