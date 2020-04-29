@@ -73,18 +73,26 @@ def check_books(root_url, username, s, old_backups=None):
     return books
 
 def save_books(s, backup_folder, root_url, books):
-        for book in books:
-            log.info("Downloading " + get_safe_name(book["name"]))
-            full_url = urllib.parse.urljoin(root_url, book['url'])
-            response = s.get(full_url, headers={"Depth": "1"})
-             
-            backup_file = (get_safe_name(book["name"]) + "##" + 
-                    str(book["date"].timestamp()) + ".vcf")
-            backup_folder.mkdir(parents=True, exist_ok=True)
-            backup_path = backup_folder / backup_file
+    for book in books:
+        log.info("Downloading " + get_safe_name(book["name"]))
+        full_url = urllib.parse.urljoin(root_url, book['url'])
+        response = s.get(full_url, headers={"Depth": "1"})
+            
+        backup_file = (get_safe_name(book["name"]) + "##" + 
+                str(book["date"].timestamp()) + ".vcf")
+        backup_folder.mkdir(parents=True, exist_ok=True)
+        backup_path = backup_folder / backup_file
 
-            with open(backup_path, "w+") as f:
-                f.write(response.text)
+        with open(backup_path, "w+") as f:
+            f.write(response.text)
+
+def cleanup_books(books, old_backups):
+    log.info("Cleaning up old backups")
+    for book in books:
+        if book["name"] in old_backups:
+            for b in old_backups[book["name"]]["backups"]:
+                log.info("Deleting " + str(b))
+                b.unlink()
 
 def backup_carddav(config):
 
@@ -100,10 +108,5 @@ def backup_carddav(config):
         save_books(s, Path(config['backup_folder']), root_url, books)
       
         if config.get("keep_old", False) and len(books) > 0:
-            log.info("Cleaning up old backups")
-            for book in books:
-                if book["name"] in old_backups:
-                    for b in old_backups[book["name"]]["backups"]:
-                        log.info("Deleting " + str(b))
-                        b.unlink()
+            cleanup_books(books, old_backups)
 
