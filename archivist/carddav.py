@@ -102,7 +102,8 @@ def backup_carddav(config):
         if config.get("keep_old", False) and len(books) > 0:
             log.info("Cleaning up old backups")
             for book in books:
-                for b in old_backups[book["name"]]["backups"]:
-                    log.info("Deleting " + str(b))
-                    b.unlink()
+                if book["name"] in old_backups:
+                    for b in old_backups[book["name"]]["backups"]:
+                        log.info("Deleting " + str(b))
+                        b.unlink()
 
