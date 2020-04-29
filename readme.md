@@ -68,6 +68,14 @@ services:
         user: user@email.host.name 
         password: Hunter2 
         cleanup: False
+    caldav:
+        service_type: caldav
+        name: "Fastmail Carddav"
+        backup_folder: /home/user/backups/caldav
+        url: caldav.email.host.name
+        user: user@email.host.name 
+        password: Hunter2 
+        cleanup: False
 ```
 
 ## Supported Services
@@ -76,8 +84,9 @@ services:
 - Pinboard
 - IMAP servers
 - CardDav servers
+- CalDav servers
 
 ### Service Notes
 
-#### IMAP/CardDav Servers
+#### IMAP/CardDav/CalDav Servers
 The Archivist is currently tested against Fastmail, other hosts may present issues. Report an issue with any problems you see.
