@@ -30,7 +30,8 @@ def get_old_backups(backup_dir):
                 "short_name": data["short_name"],
                 "uuid": data["uuid"], 
                 "date": data["date"],
-                "etag": data["etag"]
+                "etag": data["etag"],
+                "file": b
                 })
 
     return old_backups
@@ -264,7 +265,6 @@ def save_books(s, backup_folder, bookset):
 
         #print(book['vcf'])
 
-            
         backup_file = (book["short_name"] + "-" + 
                 str(book["date"]) + ".json")
         backup_folder.mkdir(parents=True, exist_ok=True)
@@ -279,10 +279,10 @@ def save_books(s, backup_folder, bookset):
 def cleanup_books(books, old_backups):
     log.info("Cleaning up old backups")
     for book in books:
-        if book["name"] in old_backups:
-            for b in old_backups[book["name"]]["backups"]:
-                log.info("Deleting " + str(b))
-                b.unlink()
+        backups = (x for x in old_backups if x['short_name'] == book['short_name'])
+        for b in backups:
+            log.info("Deleting " + str(b['file']))
+            b['file'].unlink()
 
 # Run the whole backup sequence
 def backup_carddav(config):
@@ -299,6 +299,6 @@ def backup_carddav(config):
         
         save_books(s, Path(config['backup_folder']), needs_update)
       
-        #if config.get("keep_old", False) and len(books) > 0:
-        #    cleanup_books(books, old_backups)
+        if not config.get("keep_old", False) and len(needs_update) > 0:
+            cleanup_books(needs_update, old_backups)
 
