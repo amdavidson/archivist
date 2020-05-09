@@ -221,8 +221,12 @@ def compare_backups(old_backups, bookset):
                 if b["date"] > latest:
                     latest = b["date"]
             if book["date"] > latest:
+                log.info(b["url"]+" has been updated.")
                 needs_update.append(book)
+            else:
+                log.info(b["url"]+" has a current backup.")
     else: 
+        log.info("No backups found.")
         needs_update = bookset
 
     #print(needs_update)
