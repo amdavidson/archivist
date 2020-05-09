@@ -1,113 +1,324 @@
-import requests, json, logging, datetime
+import requests, json, logging, datetime, hashlib
 import urllib.parse
 from pathlib import Path
 from xml.etree import ElementTree
 
 log = logging.getLogger(__name__)
 
-def autodiscover(url):
-    log.info("Autodiscovering url...")
-    url = url.strip("/")
+def autodiscover(s, url):
+    url = url.rstrip("/")
     if url.endswith('/.well-known/caldav'):
         discovery_url = url 
     else:
         discovery_url = urllib.parse.urljoin(url, '/.well-known/caldav')
 
-    response = requests.get(discovery_url)
+    response = s.get(discovery_url)
 
-    return response.url
+    if response.ok:
+        log.info("Autodiscovery successful: "+response.url)
+        return response.url
+    else:
+        log.info("Autodiscovery failed, connecting to: "+url)
+        return url
 
 def get_old_backups(backup_dir):
-    old_backups = {}
-    for b in backup_dir.glob("*.ics"):
-        bname, b2 = b.stem.split("##")
-        bdate = datetime.datetime.fromtimestamp(float(b2))
-
-        if bname not in old_backups:
-            old_backups[bname] = {}
-            old_backups[bname]["backups"] = [b]
-            old_backups[bname]["latest"] = datetime.datetime.fromtimestamp(0)
-        else:
-            old_backups[bname]["backups"].append(b)
-
-        if old_backups[bname]["latest"] < bdate:
-            log.info("Found " + bname + " last updated on " + str(bdate))
-            old_backups[bname]["latest"] = bdate
+    old_backups = []
+    for b in backup_dir.glob("*.json"):
+        with open(b) as f:
+            data = json.load(f)
+        old_backups.append({
+                "short_name": data["short_name"],
+                "uuid": data["uuid"], 
+                "modified_date": data["modified_date"],
+                "backup_date": data["backup_date"],
+                "etag": data["etag"],
+                "file": b
+                })
 
     return old_backups
 
-def get_safe_name(name):
-    safe_chars = ("_", ".", "-")
-    safe_name = "".join(c for c in name if c.isalnum() or c in safe_chars).rstrip()
-    return safe_name
+# Get the principal user url for the user provided by the session
+# Returns the same url that is provided if a principal user url cannot be found
+def get_principal_url(s, url):
+    headers = {}
+    headers['Depth'] = '0'
+    headers['Content-type'] = 'text/xml'
+    ns = { "D": "DAV:", "C": "urn:ietf:params:xml:ns:caldav" }
+    body = b"""
+        <d:propfind xmlns:d="DAV:">
+            <d:prop>
+                <d:current-user-principal />
+            </d:prop>
+        </d:propfind>
+        """
+    response = s.request('PROPFIND', url, headers=headers, data=body)
+    #print(response.text)
+    root = ElementTree.fromstring(response.content)
+    rv = root.find('.//{DAV:}current-user-principal/{DAV:}href') 
+    if rv is not None:
+        principal_url = urllib.parse.urljoin(url, rv.text).rstrip("/") + '/'
+    else:
+        log.info("Principal URL could not be determined.")
+        principal_url = url
 
-def check_calendars(root_url, username, s, old_backups=None):
-    log.info("Checking for out of date calendars...")
+    log.info("Principal URL: "+principal_url)
+    return principal_url
 
-    addr_url = root_url + '/user/' + username
-
-    response = s.request("PROPFIND", addr_url, headers={"Depth": "1"})
-
-    tree = ElementTree.fromstring(response.content)
-
+# Get resource types available at a particular url
+def get_resource_types(s, url):
+    headers = {}
+    headers['Depth'] = '1'
+    headers['Content-Type'] = 'text/xml'
     ns = { "D": "DAV:", "C": "urn:ietf:params:xml:ns:caldav" }
 
-    calendars = []
+    body = b"""
+        <d:propfind xmlns:d="DAV:">
+            <d:prop>
+                <d:resourcetype />
+            </d:prop>
+        </d:propfind>
+        """
+    response = s.request('PROPFIND', url, headers=headers, data=body)
+    #print(response.text)
+#    tree = ElementTree.fromstring(response.content)
+#    print(response.text)
+#    for i in tree.findall("././D:response", ns):
+#        if i.findall(".//C:addressbook", ns):
+#            name = i.find("./D:propstat/D:prop/D:displayname", ns).text
+#            date = datetime.datetime.strptime(i.find("./D:propstat/D:prop/D:getlastmodified", ns).text,
+#                    "%a, %d %b %Y %H:%M:%S %Z").timestamp()
+#            url = i.find("./D:href", ns).text
+#            print(name+": "+url)
 
-    for i in tree.findall("././D:response", ns):
+
+# Get addressbook urls from a collection/homeset URL 
+def get_collection_urls(s, homeset_url):
+    headers = {}
+    headers['Depth'] = '1'
+    headers['Content-Type'] = 'text/xml'
+    ns = { "D": "DAV:", "C": "urn:ietf:params:xml:ns:caldav" }
+
+    body = b"""<?xml version="1.0" encoding="utf-8" ?>
+    <d:propfind xmlns:d="DAV:">
+        <d:prop>
+            <d:resourcetype />
+            <d:getlastmodified />
+        </d:prop>
+    </d:propfind>"""
+
+    response = s.request('PROPFIND', homeset_url, headers=headers, data=body)
+    #print(response.text)
+    tree = ElementTree.fromstring(response.content)
+
+    addressbook_urls = []
+    for i in tree.findall("D:response", ns):
         if i.findall(".//C:calendar", ns):
-            name = i.find("./D:propstat/D:prop/D:displayname", ns).text
-            date = datetime.datetime.strptime(i.find("./D:propstat/D:prop/D:getlastmodified", ns).text,
-                    "%a, %d %b %Y %H:%M:%S %Z")
-            url = i.find("./D:href", ns).text
+            s = i.find("./D:href", ns).text
+            u = urllib.parse.urljoin(homeset_url, s).rstrip('/') + '/'
+            log.info("Found an calendar at: " + u)
+            addressbook_urls.append(u)
+    
+    return addressbook_urls
+            
 
-            safename = get_safe_name(name)
 
-            if safename not in old_backups or date > old_backups[safename]["latest"]:
-                log.info(safename + " is out of date")
-                calendars.append({"name": name, "url": url, "date": date})
+# Get the homeset url for the user determined by the session
+# Returns the same url it is provided if it cannot find a homeset url
+def get_homeset_url(s, url):
+    headers = {}
+    headers['Depth'] = '0'
+    headers['Content-Type'] = 'text/xml'
+    ns = { "D": "DAV:", "C": "urn:ietf:params:xml:ns:caldav" }
+    body = b"""
+        <d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+            <d:prop>
+                <c:calendar-home-set />
+            </d:prop>
+        </d:propfind>
+    """
+    response = s.request('PROPFIND', url, headers=headers, data=body)
+    #print(response.text)
+    root = ElementTree.fromstring(response.content)
+    rv = root.find('.//C:calendar-home-set/D:href', ns)
+    if rv is not None:
+        homeset_url = urllib.parse.urljoin(url, rv.text).rstrip('/') + '/'
+    else:
+        log.info("Homeset url could not be determined.")
+        homeset_url = url
 
-    if len(calendars) == 0:
-        log.info("No out of date calendars found.")
+    log.info("Homeset url: "+homeset_url)
+    return homeset_url
 
-    return calendars
 
-def save_calendars(s, backup_folder, root_url, calendars):
-        for calendar in calendars:
-            log.info("Downloading " + get_safe_name(calendar["name"]))
-            full_url = urllib.parse.urljoin(root_url, calendar['url'])
-            response = s.get(full_url, headers={"Depth": "1"})
-             
-            backup_file = (get_safe_name(calendar["name"]) + "##" + 
-                    str(calendar["date"].timestamp()) + ".ics")
-            backup_folder.mkdir(parents=True, exist_ok=True)
-            backup_path = backup_folder / backup_file
+def get_calendar_info(s, url):
+    headers = {}
+    headers['Depth'] = '0'
+    headers['Content-Type'] = 'text/xml'
+    ns = { "D": "DAV:", "C": "urn:ietf:params:xml:ns:caldav" }
+    body = b"""<?xml version="1.0" encoding="utf-8" ?>
+    <d:propfind xmlns:d="DAV:">
+        <d:prop>
+            <d:resourcetype />
+            <d:getlastmodified />
+            <d:getetag />
+        </d:prop>
+    </d:propfind>"""
+    #body = ""
+    
+    response = s.request('propfind', url, headers=headers, data=body)
+    tree = ElementTree.fromstring(response.content)
+    #print(response.text)
+    etag = tree.find(".//D:getetag", ns).text
+    #print(etag)
+    uuid = hashlib.sha256(url.encode("utf-8")).hexdigest()
+    #print(uuid)
+    lm_date = tree.find(".//D:getlastmodified", ns).text
+    if lm_date is not None:
+        mod_date = datetime.datetime.strptime(
+                lm_date,
+                "%a, %d %b %Y %H:%M:%S %Z").timestamp()
+    else:
+        mod_date = None
 
-            with open(backup_path, "w+") as f:
-                f.write(response.text)
+    return {
+            "short_name": uuid[:7],
+            "uuid": uuid,
+            "modified_date": mod_date, 
+            "backup_date": datetime.datetime.now().timestamp(),
+            "url": url, 
+            "etag": etag
+            }
 
-def cleanup_calendars(calendars, old_backups):
+    
+
+# Check the remote server for what calendars are available
+# Return a list of calendars on offer from the server
+def check_calendars(s, root_url):
+    root_url = root_url.rstrip("/") + '/'
+ 
+    # Get the principal url for the user
+    principal_url = get_principal_url(s, root_url)
+
+    # Get the homeset url for the user
+    homeset_url = get_homeset_url(s, principal_url)
+
+    #get_resource_types(s, homeset_url)
+
+    # Find addressbooks from the homeset collection
+    calendar_urls = get_collection_urls(s, homeset_url)
+
+    # Iterate through addressbooks getting more information about them.
+    calset = [] 
+    for url in calendar_urls:
+        calset.append(get_calendar_info(s, url))
+
+    return calset
+
+# Compare the current set of calendars from the server to the old_backups on hand
+# Return a list of calendars that need to be updated.
+def compare_backups(old_backups, calset):
+    needs_update = []
+
+    if old_backups is not None:
+        for cal in calset:
+            #print(cal)
+            #print(old_backups)
+            backups = [x for x in old_backups if x["short_name"] == cal["short_name"]]
+            if len(backups) > 0:
+                latest = backups[0]
+            else:
+                log.info(cal["url"]+" not found in backups.")
+                needs_update.append(cal)
+                continue
+            for b in backups:
+                #print(b)
+                if b["backup_date"] > latest["backup_date"]:
+                    latest = b
+            if cal["modified_date"] is not None and cal["modified_date"] > latest['modified_date']:
+                log.info(cal["url"]+" has been updated.")
+                needs_update.append(cal)
+            elif cal["modified_date"] is None:
+                if cal["etag"] != latest["etag"]:
+                    log.info(cal["url"]+" has been changed.")
+                    needs_update.append(cal)
+                else:
+                    log.info(cal["url"]+" has not been changed.")
+            else:
+                log.info(cal["url"]+" has a current backup.")
+    else: 
+        log.info("No backups found.")
+        needs_update = calset
+
+    #print(needs_update)
+    return needs_update
+
+# Save new backups of the required calendars
+def save_calendars(s, backup_folder, calset):
+    headers = {}
+    headers['Depth'] = '1'
+    headers['Content-Type'] = 'text/xml'
+    ns = { "D": "DAV:", "C": "urn:ietf:params:xml:ns:caldav" }
+    body = b"""<?xml version="1.0" encoding="utf-8" ?>
+    <d:propfind xmlns:d="DAV:">
+        <d:prop>
+            <d:resourcetype />
+            <d:getlastmodified />
+            <d:getetag />
+        </d:prop>
+    </d:propfind>"""
+    #body = ""
+    
+    for cal in calset:
+    
+        log.info("Downloading " + cal["url"]) 
+        #response = s.get(cal["url"], headers={"Depth": "1"})
+        response = s.request('PROPFIND', cal["url"], headers=headers, data=body)
+        #print(response.text)
+        tree = ElementTree.fromstring(response.content)
+        cals = tree.findall('.//D:href', ns)
+        #print(cals)
+        cal['ics'] = {}
+        for c in cals:
+            #print(c.text)
+            u = urllib.parse.urljoin(cal['url'], c.text)
+
+            response = s.get(u, headers={"Depth": "1"})
+            cal['ics'][c.text] = response.text
+
+            #print(cal['ics'][c.text])
+
+        backup_file = (cal["short_name"] + "-" + 
+                str(cal["backup_date"]) + ".json")
+        backup_folder.mkdir(parents=True, exist_ok=True)
+        backup_path = backup_folder / backup_file
+
+        with open(backup_path, "w+") as f:
+            json.dump(cal, f, sort_keys=True, default=str)
+
+# Cleanup old backups of the cals that were updated
+def cleanup_calendars(cals, old_backups):
     log.info("Cleaning up old backups")
-    for calendar in calendars:
-        if calendar["name"] in old_backups:
-            for b in old_backups[calendar["name"]]["backups"]:
-                log.info("Deleting " + str(b))
-                b.unlink()
+    for cal in cals:
+        backups = (x for x in old_backups if x['short_name'] == cal['short_name'])
+        for b in backups:
+            log.info("Deleting " + str(b['file']))
+            b['file'].unlink()
 
-
+# Run the whole backup sequence
 def backup_caldav(config):
-
-    root_url = autodiscover(config["url"])
-
     with requests.Session() as s:
         s.auth = (config['user'], config['password'])
 
+        root_url = autodiscover(s, config["url"])
+
         old_backups = get_old_backups(Path(config['backup_folder']))
         
-        calendars = check_calendars(root_url, config["user"], s, old_backups)
+        new_calset = check_calendars(s, root_url)
+
+        needs_update = compare_backups(old_backups, new_calset)
         
-        save_calendars(s, Path(config['backup_folder']), root_url, calendars)
+        save_calendars(s, Path(config['backup_folder']), needs_update)
       
-        if config.get("keep_old", False) and len(calendars) > 0:
-            cleanup_calendars(calendars, old_backups)
+        if not config.get("keep_old", False) and len(needs_update) > 0:
+            cleanup_calendars(needs_update, old_backups)
 
