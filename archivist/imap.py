@@ -102,22 +102,22 @@ def update_folder_uid(localroot, folder, uid_validity, uid):
 
 def cleanup_folder(localroot, folder, remote_messages):
     cull_list = []
-    local_list = []
+    local_list = {}
     path = localroot / folder / "cur"
     
     log.info("Cleaning up old messages in "+folder)
 
     for p in path.glob("*"):
         uid = int(p.stem.split("-")[1].lstrip("0"))
-        local_list.append(p)
-        if uid not in remote_messages:
-            cull_list.append(p)
+        local_list[uid] = p
+
+    cull_list = list(set(local_list).difference(remote_messages))
 
     if len(cull_list) > 0 :
         log.info("Deleting "+str(len(cull_list)) + " of " + str(len(local_list)))
         
         for m in cull_list:
-            m.unlink()
+            local_list[m].unlink()
 
     remote_count = len(remote_messages)
     final_count = 0
