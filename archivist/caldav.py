@@ -27,11 +27,13 @@ def get_old_backups(backup_dir):
         with open(b) as f:
             data = json.load(f)
         old_backups.append({
+                "display_name": data["display_name"],
                 "short_name": data["short_name"],
                 "uuid": data["uuid"], 
                 "modified_date": data["modified_date"],
                 "backup_date": data["backup_date"],
                 "etag": data["etag"],
+                "ctag": data["ctag"],
                 "file": b
                 })
 
@@ -154,13 +156,15 @@ def get_calendar_info(s, url):
     headers = {}
     headers['Depth'] = '0'
     headers['Content-Type'] = 'text/xml'
-    ns = { "D": "DAV:", "C": "urn:ietf:params:xml:ns:caldav" }
+    ns = { "D": "DAV:", "C": "urn:ietf:params:xml:ns:caldav", "CS": "http://calendarserver.org/ns/"}
     body = b"""<?xml version="1.0" encoding="utf-8" ?>
-    <d:propfind xmlns:d="DAV:">
+    <d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/">
         <d:prop>
             <d:resourcetype />
             <d:getlastmodified />
             <d:getetag />
+            <d:displayname />
+            <cs:getctag />
         </d:prop>
     </d:propfind>"""
     #body = ""
@@ -170,6 +174,9 @@ def get_calendar_info(s, url):
     #print(response.text)
     etag = tree.find(".//D:getetag", ns).text
     #print(etag)
+    name = tree.find(".//D:displayname", ns).text
+    ctag = tree.find(".//CS:getctag", ns).text
+    #print(name, ctag)
     uuid = hashlib.sha256(url.encode("utf-8")).hexdigest()
     #print(uuid)
     lm_date = tree.find(".//D:getlastmodified", ns).text
@@ -181,12 +188,14 @@ def get_calendar_info(s, url):
         mod_date = None
 
     return {
+            "display_name": name,
             "short_name": uuid[:7],
             "uuid": uuid,
             "modified_date": mod_date, 
             "backup_date": datetime.datetime.now().timestamp(),
             "url": url, 
-            "etag": etag
+            "etag": etag,
+            "ctag": ctag
             }
 
     
@@ -227,24 +236,18 @@ def compare_backups(old_backups, calset):
             if len(backups) > 0:
                 latest = backups[0]
             else:
-                log.info(cal["url"]+" not found in backups.")
+                log.info(cal["display_name"]+" not found in backups.")
                 needs_update.append(cal)
                 continue
             for b in backups:
                 #print(b)
                 if b["backup_date"] > latest["backup_date"]:
                     latest = b
-            if cal["modified_date"] is not None and cal["modified_date"] > latest['modified_date']:
-                log.info(cal["url"]+" has been updated.")
+            if cal["ctag"] != latest["ctag"]:
+                log.info(cal["display_name"]+" has been changed.")
                 needs_update.append(cal)
-            elif cal["modified_date"] is None:
-                if cal["etag"] != latest["etag"]:
-                    log.info(cal["url"]+" has been changed.")
-                    needs_update.append(cal)
-                else:
-                    log.info(cal["url"]+" has not been changed.")
             else:
-                log.info(cal["url"]+" has a current backup.")
+                log.info(cal["display_name"]+" has not been changed.")
     else: 
         log.info("No backups found.")
         needs_update = calset
@@ -270,7 +273,7 @@ def save_calendars(s, backup_folder, calset):
     
     for cal in calset:
     
-        log.info("Downloading " + cal["url"]) 
+        log.info("Downloading " + cal["display_name"]) 
         #response = s.get(cal["url"], headers={"Depth": "1"})
         response = s.request('PROPFIND', cal["url"], headers=headers, data=body)
         #print(response.text)
