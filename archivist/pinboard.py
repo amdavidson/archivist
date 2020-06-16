@@ -15,8 +15,7 @@ def get_old_backups(pinboard_dir):
 
 def backup_pinboard(config):
     response = requests.get("https://api.pinboard.in/v1/posts/update?format=json&auth_token="+config["user"]+":"+config["token"])
-
-    apiupdated = datetime.datetime.strptime(json.loads(response.text)["update_time"], "%Y-%m-%dT%H:%M:%SZ")
+    apiupdated = datetime.datetime.strptime(json.loads(response.content.decode('utf-8-sig'))["update_time"], "%Y-%m-%dT%H:%M:%SZ")
 
     pinboard_dir = Path(config["backup_folder"])
 
