@@ -3,6 +3,7 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
+
 def get_old_backups(pinboard_dir):
     newest = datetime.datetime.fromtimestamp(0)
     old_backups = []
@@ -13,10 +14,18 @@ def get_old_backups(pinboard_dir):
             newest = bdate
     return newest, old_backups
 
-def backup_pinboard(config):
-    response = requests.get("https://api.pinboard.in/v1/posts/update?format=json&auth_token="+config["user"]+":"+config["token"])
 
-    apiupdated = datetime.datetime.strptime(json.loads(response.text)["update_time"], "%Y-%m-%dT%H:%M:%SZ")
+def backup_pinboard(config):
+    response = requests.get(
+        "https://api.pinboard.in/v1/posts/update?format=json&auth_token="
+        + config["user"]
+        + ":"
+        + config["token"]
+    )
+
+    apiupdated = datetime.datetime.strptime(
+        json.loads(response.text)["update_time"], "%Y-%m-%dT%H:%M:%SZ"
+    )
 
     pinboard_dir = Path(config["backup_folder"])
 
@@ -24,8 +33,13 @@ def backup_pinboard(config):
 
     if apiupdated > newest_backup:
         log.info("New bookmarks added, pulling latest backup...")
-        response = requests.get("https://api.pinboard.in/v1/posts/all?format=json&auth_token="+config["user"]+":"+config["token"])
-        backupfile = str(time.time()) + ".json" 
+        response = requests.get(
+            "https://api.pinboard.in/v1/posts/all?format=json&auth_token="
+            + config["user"]
+            + ":"
+            + config["token"]
+        )
+        backupfile = str(time.time()) + ".json"
         pinboard_dir.mkdir(parents=True, exist_ok=True)
         backuppath = pinboard_dir / backupfile
 
@@ -37,6 +51,5 @@ def backup_pinboard(config):
             for b in old_backups:
                 b.unlink()
 
-        
     else:
         log.info("No new bookmarks since last backup.")
