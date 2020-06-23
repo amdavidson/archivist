@@ -29,18 +29,6 @@ def get_old_backups(backup_dir):
         with open(b) as f:
             data = json.load(f)
         old_backups.append(data)
-    #        old_backups.append(
-    #            {
-    #                "display_name": data["display_name"],
-    #                "short_name": data["short_name"],
-    #                "uuid": data["uuid"],
-    #                "modified_date": data["modified_date"],
-    #                "backup_date": data["backup_date"],
-    #                "etag": data["etag"],
-    #                "ctag": data["ctag"],
-    #                "file": b,
-    #            }
-    #        )
 
     return old_backups
 
@@ -71,35 +59,6 @@ def get_principal_url(s, url):
 
     log.info("Principal URL: " + principal_url)
     return principal_url
-
-
-# Get resource types available at a particular url
-def get_resource_types(s, url):
-    headers = {}
-    headers["Depth"] = "1"
-    headers["Content-Type"] = "text/xml"
-    ns = {"D": "DAV:", "C": "urn:ietf:params:xml:ns:caldav"}
-
-    body = b"""
-        <d:propfind xmlns:d="DAV:">
-            <d:prop>
-                <d:resourcetype />
-            </d:prop>
-        </d:propfind>
-        """
-    response = s.request("PROPFIND", url, headers=headers, data=body)
-    # print(response.text)
-
-
-#    tree = ElementTree.fromstring(response.content)
-#    print(response.text)
-#    for i in tree.findall("././D:response", ns):
-#        if i.findall(".//C:addressbook", ns):
-#            name = i.find("./D:propstat/D:prop/D:displayname", ns).text
-#            date = datetime.datetime.strptime(i.find("./D:propstat/D:prop/D:getlastmodified", ns).text,
-#                    "%a, %d %b %Y %H:%M:%S %Z").timestamp()
-#            url = i.find("./D:href", ns).text
-#            print(name+": "+url)
 
 
 # Get addressbook urls from a collection/homeset URL
