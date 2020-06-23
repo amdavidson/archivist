@@ -216,7 +216,8 @@ def compare_backups(old_backups, calset):
                     latest = b
             if cal["ctag"] != latest["ctag"]:
                 log.info(cal["display_name"] + " has been changed.")
-                cal["latest"] = latest
+                if "events" in latest:
+                    cal["events"] = latest["events"]
                 needs_update.append(cal)
             else:
                 log.info(cal["display_name"] + " has not been changed.")
@@ -245,9 +246,7 @@ def save_calendars(s, backup_folder, calset):
     # body = ""
 
     for cal in calset:
-        if "latest" in cal:
-            cal["events"] = cal["latest"]["events"]
-            cal.pop("latest")
+        if "events" in cal:
             log.info("Updating " + cal["display_name"])
         else:
             cal["events"] = {}
