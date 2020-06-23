@@ -294,7 +294,7 @@ def save_calendars(s, backup_folder, calset):
             href = c.find(".//D:href", ns)
             u = urllib.parse.urljoin(cal["url"], href.text)
             response = s.get(u, headers={"Depth": "1"})
-            cal["events"][href] = {
+            cal["events"][href.text] = {
                 "url": str(u),
                 "etag": c.find(".//D:getetag", ns).text,
                 "ics": response.text,
