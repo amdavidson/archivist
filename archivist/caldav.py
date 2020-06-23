@@ -28,18 +28,19 @@ def get_old_backups(backup_dir):
     for b in backup_dir.glob("*.json"):
         with open(b) as f:
             data = json.load(f)
-        old_backups.append(
-            {
-                "display_name": data["display_name"],
-                "short_name": data["short_name"],
-                "uuid": data["uuid"],
-                "modified_date": data["modified_date"],
-                "backup_date": data["backup_date"],
-                "etag": data["etag"],
-                "ctag": data["ctag"],
-                "file": b,
-            }
-        )
+        old_backups.append(data)
+    #        old_backups.append(
+    #            {
+    #                "display_name": data["display_name"],
+    #                "short_name": data["short_name"],
+    #                "uuid": data["uuid"],
+    #                "modified_date": data["modified_date"],
+    #                "backup_date": data["backup_date"],
+    #                "etag": data["etag"],
+    #                "ctag": data["ctag"],
+    #                "file": b,
+    #            }
+    #        )
 
     return old_backups
 
@@ -256,6 +257,7 @@ def compare_backups(old_backups, calset):
                     latest = b
             if cal["ctag"] != latest["ctag"]:
                 log.info(cal["display_name"] + " has been changed.")
+                cal["latest"] = latest
                 needs_update.append(cal)
             else:
                 log.info(cal["display_name"] + " has not been changed.")
@@ -284,19 +286,30 @@ def save_calendars(s, backup_folder, calset):
     # body = ""
 
     for cal in calset:
+        if "latest" in cal:
+            cal["events"] = cal["latest"]["events"]
+            cal.pop("latest")
+            log.info("Updating " + cal["display_name"])
+        else:
+            cal["events"] = {}
+            log.info("Downloading " + cal["display_name"])
 
-        log.info("Downloading " + cal["display_name"])
         response = s.request("PROPFIND", cal["url"], headers=headers, data=body)
         tree = ElementTree.fromstring(response.content)
         cals = tree.findall(".//D:response", ns)
-        cal["events"] = {}
         for c in cals:
-            href = c.find(".//D:href", ns)
-            u = urllib.parse.urljoin(cal["url"], href.text)
+            href = c.find(".//D:href", ns).text
+            newEtag = c.find(".//D:getetag", ns).text
+
+            if href in cal["events"]:
+                if cal["events"][href]["etag"] == newEtag:
+                    continue
+
+            u = urllib.parse.urljoin(cal["url"], href)
             response = s.get(u, headers={"Depth": "1"})
-            cal["events"][href.text] = {
+            cal["events"][href] = {
                 "url": str(u),
-                "etag": c.find(".//D:getetag", ns).text,
+                "etag": newEtag,
                 "ics": response.text,
             }
 
