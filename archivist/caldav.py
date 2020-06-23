@@ -286,28 +286,26 @@ def save_calendars(s, backup_folder, calset):
     for cal in calset:
 
         log.info("Downloading " + cal["display_name"])
-        # response = s.get(cal["url"], headers={"Depth": "1"})
         response = s.request("PROPFIND", cal["url"], headers=headers, data=body)
-        # print(response.text)
         tree = ElementTree.fromstring(response.content)
-        cals = tree.findall(".//D:href", ns)
-        # print(cals)
-        cal["ics"] = {}
+        cals = tree.findall(".//D:response", ns)
+        cal["events"] = {}
         for c in cals:
-            # print(c.text)
-            u = urllib.parse.urljoin(cal["url"], c.text)
-
+            href = c.find(".//D:href", ns)
+            u = urllib.parse.urljoin(cal["url"], href.text)
             response = s.get(u, headers={"Depth": "1"})
-            cal["ics"][c.text] = response.text
-
-            # print(cal['ics'][c.text])
+            cal["events"][href] = {
+                "url": str(u),
+                "etag": c.find(".//D:getetag", ns).text,
+                "ics": response.text,
+            }
 
         backup_file = cal["short_name"] + "-" + str(cal["backup_date"]) + ".json"
         backup_folder.mkdir(parents=True, exist_ok=True)
         backup_path = backup_folder / backup_file
 
         with open(backup_path, "w+") as f:
-            json.dump(cal, f, sort_keys=True, default=str)
+            json.dump(cal, f, default=str)
 
 
 # Cleanup old backups of the cals that were updated
