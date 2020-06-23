@@ -28,15 +28,7 @@ def get_old_backups(backup_dir):
     for b in backup_dir.glob("*.json"):
         with open(b) as f:
             data = json.load(f)
-        old_backups.append(
-            {
-                "short_name": data["short_name"],
-                "uuid": data["uuid"],
-                "date": data["date"],
-                "etag": data["etag"],
-                "file": b,
-            }
-        )
+        old_backups.append(data)
 
     return old_backups
 
@@ -67,34 +59,6 @@ def get_principal_url(s, url):
 
     log.info("Principal URL: " + principal_url)
     return principal_url
-
-
-# Get resource types available at a particular url
-def get_resource_types(s, url):
-    headers = {}
-    headers["Depth"] = "0"
-    headers["Content-Type"] = "text/xml"
-    ns = {"D": "DAV:", "C": "urn:ietf:params:xml:ns:carddav"}
-
-    body = b"""
-        <d:propfind xmlns:d="DAV:">
-            <d:prop>
-                <d:resourcetype />
-            </d:prop>
-        </d:propfind>
-        """
-    response = s.request("PROPFIND", url, headers=headers, data=body)
-    tree = ElementTree.fromstring(response.content)
-    print(response.text)
-    for i in tree.findall("././D:response", ns):
-        if i.findall(".//C:addressbook", ns):
-            name = i.find("./D:propstat/D:prop/D:displayname", ns).text
-            date = datetime.datetime.strptime(
-                i.find("./D:propstat/D:prop/D:getlastmodified", ns).text,
-                "%a, %d %b %Y %H:%M:%S %Z",
-            ).timestamp()
-            url = i.find("./D:href", ns).text
-            print(name + ": " + url)
 
 
 # Get addressbook urls from a collection/homeset URL
@@ -221,15 +185,21 @@ def compare_backups(old_backups, bookset):
 
     if old_backups is not None:
         for book in bookset:
-            # print(book)
-            latest = 0.0
-            # print(old_backups)
             backups = [x for x in old_backups if x["short_name"] == book["short_name"]]
+            if len(backups) > 0:
+                latest = backups[0]
+            else:
+                log.info("No backups found.")
+                needs_update.append(book)
+                continue
+
             for b in backups:
-                if b["date"] > latest:
-                    latest = b["date"]
-            if book["date"] > latest:
+                if b["date"] > latest["date"]:
+                    latest = b
+            if book["date"] > latest["date"]:
                 log.info(book["url"] + " has been updated.")
+                if "contacts" in latest:
+                    book["contacts"] = latest["contacts"]
                 needs_update.append(book)
             else:
                 log.info(book["url"] + " has a current backup.")
@@ -258,31 +228,34 @@ def save_books(s, backup_folder, bookset):
     # body = ""
 
     for book in bookset:
-
-        log.info("Downloading " + book["url"])
-        # response = s.get(book["url"], headers={"Depth": "1"})
+        if "contacts" in book:
+            log.info("Updating " + book["url"])
+        else:
+            log.info("Downloading " + book["url"])
+            book["contacts"] = {}
         response = s.request("PROPFIND", book["url"], headers=headers, data=body)
         tree = ElementTree.fromstring(response.content)
-        cards = tree.findall(".//D:href", ns)
-        card_urls = []
+        cards = tree.findall(".//D:response", ns)
         for card in cards:
-            # print(card.text)
-            u = urllib.parse.urljoin(book["url"], card.text)
-            card_urls.append(u)
+            href = card.find(".//D:href", ns).text
+            newEtag = card.find(".//D:getetag", ns).text
+            if href in book["contacts"]:
+                if book["contacts"][href]["etag"] == newEtag:
+                    continue
 
-        # print(card_urls[len(card_urls)-1])
-        book["vcf"] = ""
-        for u in card_urls:
+            u = urllib.parse.urljoin(book["url"], href)
+
             response = s.get(u, headers={"Depth": "1"})
-            book["vcf"] += response.text
 
-        # print(book['vcf'])
+            book["contacts"][href] = {
+                "href": href,
+                "etag": newEtag,
+                "vcf": response.text,
+            }
 
         backup_file = book["short_name"] + "-" + str(book["date"]) + ".json"
         backup_folder.mkdir(parents=True, exist_ok=True)
         backup_path = backup_folder / backup_file
-
-        # book["vcf"] = response.text
 
         with open(backup_path, "w+") as f:
             json.dump(book, f, sort_keys=True, default=str)
