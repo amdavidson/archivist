@@ -235,13 +235,26 @@ def save_books(s, backup_folder, bookset):
             book["contacts"] = {}
         response = s.request("PROPFIND", book["url"], headers=headers, data=body)
         tree = ElementTree.fromstring(response.content)
-        cards = tree.findall(".//D:response", ns)
-        for card in cards:
-            href = card.find(".//D:href", ns).text
-            newEtag = card.find(".//D:getetag", ns).text
+        contacts = tree.findall(".//D:response", ns)
+
+        new_contacts = 0
+        updated_contacts = 0
+        deleted_contacts = 0
+        current_contacts = []
+
+        for c in contacts:
+            href = c.find(".//D:href", ns).text
+            newEtag = c.find(".//D:getetag", ns).text
+
+            current_contacts.append(href)
+
             if href in book["contacts"]:
                 if book["contacts"][href]["etag"] == newEtag:
                     continue
+                else:
+                    updated_contacts += 1
+            else:
+                new_contacts += 1
 
             u = urllib.parse.urljoin(book["url"], href)
 
@@ -252,6 +265,18 @@ def save_books(s, backup_folder, bookset):
                 "etag": newEtag,
                 "vcf": response.text,
             }
+
+        cull_list = list(set(book["contacts"]).difference(current_contacts))
+        for e in cull_list:
+            book["contacts"].pop(e)
+            deleted_contacts += 1
+
+        if new_contacts > 0:
+            log.info(f"Added {new_contacts} new contacts.")
+        if updated_contacts > 0:
+            log.info(f"Updated {updated_contacts} contacts.")
+        if deleted_contacts > 0:
+            log.info(f"Deleted {deleted_contacts} contacts.")
 
         backup_file = book["short_name"] + "-" + str(book["date"]) + ".json"
         backup_folder.mkdir(parents=True, exist_ok=True)
