@@ -252,16 +252,27 @@ def save_calendars(s, backup_folder, calset):
             cal["events"] = {}
             log.info("Downloading " + cal["display_name"])
 
+        updated_events = 0
+        new_events = 0
+        deleted_events = 0
+
         response = s.request("PROPFIND", cal["url"], headers=headers, data=body)
         tree = ElementTree.fromstring(response.content)
-        cals = tree.findall(".//D:response", ns)
-        for c in cals:
+        events = tree.findall(".//D:response", ns)
+        current_events = []
+        for c in events:
             href = c.find(".//D:href", ns).text
             newEtag = c.find(".//D:getetag", ns).text
+
+            current_events.append(href)
 
             if href in cal["events"]:
                 if cal["events"][href]["etag"] == newEtag:
                     continue
+                else:
+                    updated_events += 1
+            else:
+                new_events += 1
 
             u = urllib.parse.urljoin(cal["url"], href)
             response = s.get(u, headers={"Depth": "1"})
@@ -270,6 +281,18 @@ def save_calendars(s, backup_folder, calset):
                 "etag": newEtag,
                 "ics": response.text,
             }
+
+        cull_list = list(set(cal["events"]).difference(current_events))
+        for e in cull_list:
+            cal["events"].pop(e)
+            deleted_events += 1
+
+        if new_events > 0:
+            log.info(f"Added {new_events} new events.")
+        if updated_events > 0:
+            log.info(f"Updated {updated_events} events.")
+        if deleted_events > 0:
+            log.info(f"Deleted {deleted_events} events.")
 
         backup_file = cal["short_name"] + "-" + str(cal["backup_date"]) + ".json"
         backup_folder.mkdir(parents=True, exist_ok=True)
