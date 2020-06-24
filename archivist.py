@@ -74,7 +74,12 @@ def run_archivist(command, service):
             log.info("---###---")
 
             for b in config["services"]:
-                run_backup(config["services"][b])
+                try:
+                    run_backup(config["services"][b])
+                except:
+                    log.error(
+                        "Backup of {} failed.".format(config["services"][b]["name"])
+                    )
                 log.info("---###---")
 
         elif service != None and service in config["services"]:
