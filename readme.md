@@ -62,7 +62,7 @@ services:
         compress: True
     carddav:
         service_type: carddav
-        name: "Fastmail Carddav"
+        name: "Email Host Carddav"
         backup_folder: /home/user/backups/contacts
         url: carddav.email.host.name
         user: user@email.host.name 
@@ -70,7 +70,7 @@ services:
         cleanup: False
     caldav:
         service_type: caldav
-        name: "Fastmail Carddav"
+        name: "Email Host Carddav"
         backup_folder: /home/user/backups/caldav
         url: caldav.email.host.name
         user: user@email.host.name 
@@ -89,4 +89,4 @@ services:
 ### Service Notes
 
 #### IMAP/CardDav/CalDav Servers
-The Archivist is currently tested against Fastmail, other hosts may present issues. Report an issue with any problems you see.
+The Archivist is currently tested against Fastmail and iCloud, other hosts may present issues. Report an issue with any problems you see.
