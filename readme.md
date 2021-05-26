@@ -43,7 +43,7 @@ services:
         disable_gists: False
         repo_backup_list:
             - important-repository
-        gist_backup_list
+        gist_backup_list:
             - 1337
     pinboard:
         name: "Pinboard"
