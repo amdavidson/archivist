@@ -1,6 +1,8 @@
-FROM debian:stable
+FROM fedora:34 
 
-RUN apt-get update && apt-get install -y python3-pip && apt-get clean && pip3 install pipenv
+RUN dnf install -y python3-pip which \
+&& dnf clean all \
+&& pip3 install pipenv
 
 VOLUME /backups
 
