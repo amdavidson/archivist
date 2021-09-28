@@ -1,0 +1,11 @@
+[Unit]
+Description=Update remote ip address regularly
+
+[Service]
+Environment=XDG_CONFIG_HOME=/home/FIXME/.config
+Environment=XDG_DATA_HOME=/home/FIXME/.local/share
+Type=simple
+ExecStart=/home/FIXME/.local/share/archivist/bin/cron.sh
+
+[Install]
+WantedBy=default.target
